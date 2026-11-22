@@ -8,7 +8,7 @@ No account, no cloud, no subscription, no usage limit.</p>
 
 <p align="center"><a href="download/EsyType_0.3.0_x64-setup.exe"><b>⬇ Download EsyType 0.3.0 for Windows</b></a> (5.6 MB, 64-bit Windows 10 or 11)</p>
 
-![EsyType: hold the shortcut, speak, release](docs/images/dictation.png)
+![EsyType: hold the shortcut, speak, release](docs/images/dictation-ctrl-space.png)
 
 ## Install
 
