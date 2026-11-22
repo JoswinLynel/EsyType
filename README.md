@@ -23,7 +23,7 @@ To remove it: Windows Settings → Apps → EsyType → Uninstall. Tick "Also de
 
 ## How it works
 
-1. **Hold `Ctrl+F8`, speak, release.** Or press `Ctrl+F7` to start and again to stop. `Esc` cancels. You can change both shortcuts.
+1. **Hold `Ctrl+Space`, speak, release.** Or press `Ctrl+Shift+Space` to start and again to stop. `Esc` cancels. You can change both shortcuts in Settings.
 2. A small pill shows that EsyType is listening, then working.
 3. Your speech is transcribed **on your PC** by [whisper.cpp](https://github.com/ggerganov/whisper.cpp). A voice-activity detector (Silero VAD) skips silence.
 4. The text is tidied up and typed **into the window you started in**. If that window has gone, EsyType copies the text instead of typing it somewhere else.
