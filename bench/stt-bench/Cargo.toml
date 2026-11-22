@@ -1,0 +1,12 @@
+[package]
+name = "stt-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Engine proof: measures whisper.cpp load and transcription time on this PC"
+
+[dependencies]
+whisper-rs = "0.16"
+
+[profile.release]
+debug = false

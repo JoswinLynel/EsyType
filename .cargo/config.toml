@@ -1,0 +1,7 @@
+# On MSVC the `cmake` crate writes CMAKE_<LANG>_FLAGS_RELEASE without /O2, so whisper.cpp would be
+# compiled unoptimised (about 7x slower; see docs/testing/2026-11-17-stt-dev-pc.md section 7).
+# whisper-rs-sys forwards CMAKE_* env vars as defines, and the cmake crate keeps a defined value.
+# /MD must stay: it matches Rust's dynamic C runtime.
+[env]
+CMAKE_C_FLAGS_RELEASE = "/MD /O2 /Ob2 /DNDEBUG"
+CMAKE_CXX_FLAGS_RELEASE = "/MD /O2 /Ob2 /DNDEBUG"

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "EsyType",
+  "version": "0.3.0",
+  "identifier": "uk.co.esyai.esytype",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "EsyType",
+        "width": 980,
+        "height": 720,
+        "minWidth": 760,
+        "minHeight": 560,
+        "theme": "Dark",
+        "visible": false,
+        "focus": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "EsyAI",
+    "shortDescription": "Local voice dictation for Windows",
+    "copyright": "Copyright 2026 EsyAI",
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "allowDowngrades": false,
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "sidebarImage": "icons/installer-sidebar.bmp",
+        "installerHooks": "installer-hooks.nsh",
+        "languages": ["English"],
+        "customLanguageFiles": { "English": "installer-english.nsh" }
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/ggml-silero-v6.2.0.bin": "resources/ggml-silero-v6.2.0.bin"
+    }
+  }
+}

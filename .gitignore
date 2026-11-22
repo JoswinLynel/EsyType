@@ -1,0 +1,37 @@
+# Rust
+target/
+
+# Node
+node_modules/
+dist/
+
+# Tauri build output
+src-tauri/gen/
+src-tauri/target/
+
+# Models and downloads never belong in the repository
+models/
+*.gguf
+*.partial
+ggml-*.bin
+
+# Local data and secrets
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+*.key
+*.pfx
+
+# Editors and OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Frontend build output and Tauri generated schemas
+src-tauri/gen/
+
+# Bundled voice activity model (0.9 MB, MIT) is part of the app
+!src-tauri/resources/ggml-silero-*.bin

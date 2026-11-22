@@ -1,0 +1,45 @@
+[package]
+name = "esytype"
+version = "0.3.0"
+description = "EsyType: local-first voice dictation for Windows, by EsyAI"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2.4"
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-autostart = "2.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+whisper-rs = "0.16"
+cpal = "0.18"
+arboard = "3.7"
+sysinfo = "0.40"
+sha2 = "0.11"
+rusqlite = { version = "0.43", features = ["bundled"] }
+reqwest = { version = "0.13", features = ["blocking"] }
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Threading",
+  "Win32_System_LibraryLoader",
+  "Win32_System_SystemInformation",
+  "Win32_System_Com",
+  "Win32_UI_Accessibility",
+] }
+
+[features]
+# Test builds only: replays ESYTYPE_TEST_AUDIO (raw 16 kHz mono f32) instead of the microphone.
+e2e = []
+# Installer tests only: the separate "EsyType Test" product keeps its data in EsyAI\EsyType Test.
+installer-test = []
+
+[profile.release]
+debug = false
