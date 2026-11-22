@@ -35,3 +35,6 @@ src-tauri/gen/
 
 # Bundled voice activity model (0.9 MB, MIT) is part of the app
 !src-tauri/resources/ggml-silero-*.bin
+
+# Python bytecode
+__pycache__/

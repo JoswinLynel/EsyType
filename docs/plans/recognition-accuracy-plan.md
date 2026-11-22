@@ -127,6 +127,8 @@
 
 ## 6. Proposal C: a real-voice benchmark (overall accuracy; needed before any engine or audio change)
 
+**Status (22 Nov):** the kit is built and checked (`docs/testing/recording-kit.md`). Waiting for your recording.
+
 Synthetic voices can't show the losses you asked about (accents, quiet speech, noise, speed, your microphone). Measured improvements need real recordings, kept on this PC only.
 
 **1. A recording kit** (`bench/accuracy/record`, a small test tool using the audio library EsyType already has; no download):

@@ -1,0 +1,17 @@
+[package]
+name = "esytype-record"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Recording kit for the real-voice accuracy benchmark (test tool; recordings stay on this PC)"
+
+[dependencies]
+cpal = "0.18"
+serde_json = "1"
+
+[features]
+# audio.rs (shared with the app) has an e2e-only branch; it is never on here
+e2e = []
+
+[profile.release]
+debug = false

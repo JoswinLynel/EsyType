@@ -1,7 +1,8 @@
 # Transcribes the accuracy clips (bench/accuracy) and the 10 LibriSpeech benchmark clips with EsyType's engine
 # settings (stt-bench, ESYTYPE_BENCH_APP=1), once per condition, into $Out\<condition>.jsonl. score.py compares them.
 #   -Conditions baseline,prompt,beam   (see $defs)
-param([string[]]$Conditions = @('baseline'), [string]$Model = "D:\AI Projects\Tools\bench\models\ggml-base.en-q5_1.bin", [int]$Threads = 4,
+#   -Set owner   your own recordings instead (record/: esytype-record convert makes $Audio\owner\app16k), into results\owner
+param([string[]]$Conditions = @('baseline'), [ValidateSet('synthetic', 'owner')][string]$Set = 'synthetic', [string]$Model = "D:\AI Projects\Tools\bench\models\ggml-base.en-q5_1.bin", [int]$Threads = 4,
   [string]$Bench = "D:\AI Projects\Tools\bench\target\release\stt-bench.exe", [string]$Audio = "D:\AI Projects\Tools\bench\audio",
   [string]$Out = "D:\AI Projects\Tools\bench\results\accuracy")
 $ErrorActionPreference = 'Stop'
@@ -13,8 +14,14 @@ $defs = @{
   prompt = @{ ESYTYPE_BENCH_PROMPT = 'We use ChatGPT, OpenAI, Claude, Gemini, Copilot, GitHub, Supabase, Vercel, Next.js and Power Automate.' }
   beam = @{ ESYTYPE_BENCH_BEAM = '5' }
 }
+if ($Set -eq 'owner') {
+  if (-not $PSBoundParameters.ContainsKey('Out')) { $Out = Join-Path (Split-Path $Out) 'owner'; New-Item -ItemType Directory -Force $Out | Out-Null }
+  $clips = @(Get-ChildItem (Join-Path $Audio 'owner\app16k') -Filter *.f32 | Sort-Object Name | ForEach-Object FullName)
+  if (-not $clips) { throw "No converted recordings in $Audio\owner\app16k. Run: esytype-record convert `"$Audio\owner`"" }
+} else {
 $clips = @(Get-ChildItem (Join-Path $Audio 'accuracy') -Filter *.f32 | Sort-Object Name | ForEach-Object FullName) +
   @((Get-Content (Join-Path $Audio 'clips.json') -Raw | ConvertFrom-Json) | ForEach-Object { Join-Path $Audio ($_.file -replace '\.wav$', '.f32') })
+}
 $env:ESYTYPE_BENCH_APP = '1'
 foreach ($c in $Conditions) {
   foreach ($k in 'ESYTYPE_BENCH_PROMPT', 'ESYTYPE_BENCH_BEAM') { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }

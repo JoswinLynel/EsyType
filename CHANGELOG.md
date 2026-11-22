@@ -4,6 +4,15 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-22: Recording kit for the real-voice benchmark (test tools only; the app is unchanged)
+
+**Added**
+
+- `bench/accuracy/record`: a small recorder that shows one sentence at a time and saves your reading at the microphone's own rate. It uses EsyType's own microphone library and 16 kHz conversion code; nothing was downloaded.
+- `bench/accuracy/owner-script.json`: 70 sentences in 12 sections (everyday, accent, fast, slow, quiet, pauses, noisy room, numbers, product names, technical, a 90-second dictation, mixed), plus room-tone and noise-only takes.
+- `run.ps1 -Set owner` and `score.py --script`: transcribe and score your recordings by section, including words written where nothing was said.
+- How to record: `docs/testing/recording-kit.md`.
+
 ## 0.3.0 (2026-11-22)
 
 ### Built-in product names (recognition plan, Proposal A)

@@ -119,7 +119,9 @@ Plan: `docs/plans/phase-5-audit-and-plan.md`. AI enhancement is not part of it.
 - [x] Audit and baseline (product names 59% on 220 synthetic clips; ordinary English 0.8%; LibriSpeech 3.5%)
 - [x] Proposal A: built-in product names (80%, ordinary English unchanged; test build, full regression passed)
 - [x] Release Proposal A (0.3.0, installed 22 Nov)
-- [ ] Proposal C: recording kit, then your 15-minute recording, then the real-voice baseline
+- [x] Proposal C: recording kit built and checked (22 Nov; `docs/testing/recording-kit.md`)
+- [ ] Your 15-minute recording (instructions: `docs/testing/recording-kit.md`)
+- [ ] Real-voice baseline from your recording, including what the engine writes for silence and noise
 - [ ] Proposal D: quiet-speech gate, 16 kHz conversion, Small for accents, level normalisation (each measured first)
 - [ ] Proposal B: short hint format (opt-in), measured
 
