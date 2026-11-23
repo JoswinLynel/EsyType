@@ -50,6 +50,8 @@ pub struct Settings {
     pub undo_never: Vec<String>,
     /// First-run setup finished. None = a settings file from before the setup existed (see `settle_setup`).
     pub setup_done: Option<bool>,
+    /// "system" (follow Windows' app mode), "dark" or "light". Anything else is treated as "system".
+    pub theme: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -132,6 +134,7 @@ impl Default for Settings {
             undo_on_pill: true,
             undo_never: ["WindowsTerminal.exe", "OpenConsole.exe", "mintty.exe", "alacritty.exe", "wezterm-gui.exe", "wsl.exe"].iter().map(|s| s.to_string()).collect(),
             setup_done: None,
+            theme: "system".into(),
         }
     }
 }
@@ -472,6 +475,7 @@ mod tests {
         assert_eq!(s.history_retention_days, 90);
         assert_eq!(s.text_mode, "clean");
         assert_eq!(s.style_default, "standard");
+        assert_eq!(s.theme, "system", "older settings files follow Windows' light or dark mode");
         assert_eq!(s.style_name(Some("outlook.exe")), "professional", "rules match any case");
         assert_eq!(s.style_name(Some("Slack.exe")), "casual");
         assert_eq!(s.style_name(Some("notepad.exe")), "standard");

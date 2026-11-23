@@ -170,6 +170,13 @@ function App() {
     return () => subs.forEach((p) => p.then((f) => f()));
   }, [refresh]);
   useEffect(() => { main.current?.scrollTo(0, 0); }, [page]);
+  // Frosted glass follows Windows' Transparency effects switch; checked again whenever the window comes back to the front.
+  useEffect(() => {
+    const glass = () => invoke<boolean>("transparency_effects").then((on) => { document.documentElement.dataset.glass = on ? "on" : "off"; }).catch(() => {});
+    glass();
+    window.addEventListener("focus", glass);
+    return () => window.removeEventListener("focus", glass);
+  }, []);
 
   if (!status) return <Loading />;
 

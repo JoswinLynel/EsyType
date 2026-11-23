@@ -171,6 +171,34 @@ fn hide_pill_after(app: &AppHandle, ms: u64) {
     });
 }
 
+/// Light or dark for the main window. WebView2 takes its colour scheme from the window, so the page's
+/// `prefers-color-scheme` follows, and so does the title bar. "system" follows Windows' app mode, also when it changes.
+fn apply_theme(app: &AppHandle, theme: &str) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_theme(match theme { "dark" => Some(tauri::Theme::Dark), "light" => Some(tauri::Theme::Light), _ => None });
+    }
+}
+
+/// Windows' "Transparency effects" switch (Settings > Personalisation > Colours), which also goes off in battery saver.
+/// The window uses frosted glass only while it is on.
+#[tauri::command]
+fn transparency_effects() -> bool {
+    // Test builds only: lets the theme test see the solid fallback without touching the Windows setting.
+    #[cfg(feature = "e2e")]
+    if let Ok(v) = std::env::var("ESYTYPE_TEST_TRANSPARENCY") {
+        return v != "0";
+    }
+    use windows::core::w;
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
+    let mut v: u32 = 1;
+    let mut n = std::mem::size_of::<u32>() as u32;
+    let r = unsafe {
+        RegGetValueW(HKEY_CURRENT_USER, w!(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"), w!("EnableTransparency"),
+            RRF_RT_REG_DWORD, None, Some(&mut v as *mut u32 as *mut _), Some(&mut n))
+    };
+    r.is_err() || v != 0 // no value recorded: Windows' default, which is on
+}
+
 fn create_pill(app: &AppHandle) -> tauri::Result<()> {
     let (w, h) = (320.0, 64.0);
     let win = WebviewWindowBuilder::new(app, "pill", WebviewUrl::App("pill.html".into()))
@@ -839,6 +867,9 @@ fn save_settings(app: AppHandle, new: Settings) -> Result<(), String> {
     }
     if new.builtin_vocabulary != old.builtin_vocabulary {
         reload_dictionary(&app);
+    }
+    if new.theme != old.theme {
+        apply_theme(&app, &new.theme);
     }
     if new.threads != old.threads {
         s.engine.set_threads(settings::effective_threads(new.threads, logical(), physical()));
@@ -1739,6 +1770,8 @@ fn main() {
             pill_gen: AtomicU64::new(0),
         })
         .setup(move |app| {
+            let theme = app.state::<Shared>().settings.lock().unwrap().theme.clone();
+            apply_theme(app.handle(), &theme);
             create_pill(app.handle())?;
             create_tray(app.handle())?;
             // Test builds only: page zoom, to check layouts at large text sizes without changing Windows' display setting.
@@ -1773,7 +1806,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names,
+        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects,
             dict_list, dict_add, dict_update, dict_delete, dict_clear, dict_import, dict_export, snip_list, snip_add, snip_update, snip_delete, snip_clear, snip_import, snip_export, snip_preview, style_preview, recent_apps, notes_list, note_get, note_create, note_save, note_delete, notes_clear, note_export, flushed, show_in_folder, dismiss_settings_problem, open_folder, check_shortcut, pause_shortcuts, mic_test, hide_window, history_export, settings_export, settings_import_preview, settings_import_apply, backup_now, backup_check, backup_forget, restore_backup, undo_restore, delete_all_data, copy_text, pill_cancel, pill_copy, pill_original, pill_undo, pill_use_original, pill_stop])
         .run(context)
         .expect("EsyType failed to start");

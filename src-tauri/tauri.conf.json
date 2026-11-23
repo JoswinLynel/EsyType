@@ -18,7 +18,6 @@
         "height": 720,
         "minWidth": 760,
         "minHeight": 560,
-        "theme": "Dark",
         "visible": false,
         "focus": false
       }

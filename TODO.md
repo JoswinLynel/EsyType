@@ -135,7 +135,17 @@ Not cancelled, not in progress. Rule-based Clean mode is the text processing; no
 - Hardware compatibility scoring for clean-up models
 - Compare Qwen2.5 and Qwen3 small models
 
-## Phase 6: advanced interface. Not started
+## Next generation, Phases 6-11 (owner brief 22 Nov 2026; plan `docs/plans/next-generation-audit-and-plan.md`, approved)
+
+- [x] 6.1 Theme system and glass materials: Dark, Light, Follow Windows; frosted dialogs; AA contrast in both themes (23 Nov, test build, `docs/testing/2026-11-23-themes.md`)
+- [ ] Release 6.1 (needs your approval)
+- [ ] 6.2 Shell: new sidebar, EsyMeet and Insights placeholders, Mica behind the window
+- [ ] 6.3 Dictation screen and the glass recording pill (shape A or B chosen from screenshots)
+- [ ] 7.1 Profile and onboarding (name, theme step)
+- [ ] 8.0 Engine study (bench only): short audio window without repeated sentences
+- [ ] 8.1-8.3 EsyMeet capture, detection and recording session; 9.1-9.3 live transcription; 10 meeting history; 11.1-11.2 Insights
+
+## Phase 6 (earlier outline, replaced by the plan above)
 
 - [x] First-run wizard: done in Phase 5, Milestone 2
 - [ ] Dashboard

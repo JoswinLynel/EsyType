@@ -133,6 +133,47 @@ Status is never shown by colour alone: every status chip has a dot, a word ("Rec
 
 ---
 
+### 3.9 Themes: Dark, Light and Follow Windows (Milestone 6.1, 23 Nov 2026)
+
+**How it works**
+
+- **The setting:** `theme` in the settings file is `system` (the default), `dark` or `light`. It is chosen in Settings > Appearance.
+- **One switch:** EsyType sets the main window's theme. The title bar and the page's `prefers-color-scheme` follow it, because WebView2 takes its colour scheme from the window.
+- **The stylesheet** holds the light values on `:root` and the dark values under `@media (prefers-color-scheme: dark)`. No component sets a colour of its own.
+- **Follow Windows** tracks Windows' app mode (Settings > Personalisation > Colours), also when it changes while EsyType is open.
+- **The recording pill is always dark** over any app.
+  - Its webview shares the main window's colour scheme (one WebView2 profile), so its few colours are pinned on `.pill-body` instead.
+  - It gets its glass redesign in 6.3.
+- **High contrast** (forced colours) overrides both themes with Windows' own colours, as before.
+
+**Light values** (dark values: the tables above, unchanged except where noted)
+
+| Token | Light | Dark |
+|---|---|---|
+| `--et-bg` | `#f3f2f7` | `#0a0a0a` |
+| `--et-text-1` | `#15121c` | `#ffffff` |
+| `--et-text-2` / `-3` / `-4` | ink at 82% / 70% / 64% | white at 80% / 64% / 50% |
+| `--et-accent` / `--et-accent-text` | `#6b3fd4` / `#5a2fc2` | `#8350e8` / `#a78bfa` |
+| `--et-green` | `#166534` | `#4ade80` |
+| `--et-amber` | `#a15c07` | `#f2b04a` |
+| `--et-red` | `#b91c1c` | `#f87171` (was `#ef4444`: below AA on buttons, 4.35:1) |
+| `--et-red-fill` (behind white text) | `#b91c1c` | `#dc2626` (was `#ef4444`: 3.76:1) |
+| `--et-glass-1` / `--et-glass-2` | white 72% / ink 6% | white 3% / white 6% |
+| `--et-raised` / `--et-toast` | `#ffffff` | `#141414` / `#1a1a1a` |
+| `--et-edge` (glass rim) | white 90% | white 12% |
+
+**Contrast**
+- Every visible text on every page and in the confirmation dialog passes WCAG AA in both themes.
+- It is measured by `bench/e2e/theme-e2e.ps1` from the colours actually drawn, translucent layers included.
+
+**Frosted glass** (plan section 4.4)
+- **Conditions:** only while Windows' Transparency effects are on. The page's `data-glass` attribute is read from the registry when the window opens and whenever it comes to the front. With it off, or in high contrast, everything is solid.
+- **6.1:**
+  - dialogs and notifications are frosted (24 px blur, 1.6 saturation)
+  - the dialog's backdrop blurs the page (6 px)
+  - panels, cards and entries get the glass rim
+- **Coming later:** Mica behind the window in 6.2; the glass pill in 6.3.
+
 ## 4. Glass, border and shadow tokens
 
 ### 4.1 Fills

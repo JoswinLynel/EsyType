@@ -43,6 +43,7 @@ EsyType lives in the system tray and can start with Windows. English only for no
 | **History** | Every dictation, searchable, with the original transcription kept beside the edited text. Export to CSV or JSON. You choose how long it is kept, or turn it off. Audio is never saved. |
 | **Scratchpad** | Notes for drafts, saved on your PC. |
 | **Backup and restore** | One file holds your History, Dictionary, Snippets, notes and settings. |
+| **Light, dark or follow Windows** (coming in the next release) | Settings > Appearance. Dialogs and notifications are frosted glass while Windows' Transparency effects are on. Every text meets WCAG AA contrast in both themes. |
 | **Speech models** | Tiny (low-resource PCs), Base (balanced, the default) or Small (most accurate). EsyType says which ones fit your PC. Runs on an ordinary CPU; no graphics card needed. |
 
 <table>

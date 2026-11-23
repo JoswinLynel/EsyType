@@ -4,6 +4,42 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-23: Milestone 6.1, light and dark themes and frosted glass (test build, not yet released)
+
+**Added**
+
+- **Three themes** in Settings > Appearance:
+  - **Follow Windows:** the default. It switches with Windows' light or dark mode, even while EsyType is open.
+  - **Dark:** as before.
+  - **Light:** new.
+- **The window follows the theme:** the title bar follows it too, and the choice is kept after a restart. Existing settings files are not rewritten and simply follow Windows.
+- **Frosted glass while Windows' Transparency effects are on:**
+  - frosted dialogs and notifications over a softly blurred page
+  - a glass rim on panels, cards and entries
+  - everything solid when the switch is off or in high contrast
+
+**Fixed**
+
+- **Red "Delete all" buttons and the white-on-red Delete buttons in dialogs** were below WCAG AA contrast in the dark theme (4.35:1 and 3.76:1); both now pass. Every visible text on every page passes AA in both themes.
+
+**Changed**
+
+- Every colour in the interface is now a theme token (design system section 3.9).
+- The recording pill keeps its dark look in either theme.
+
+**Tests**
+
+- **New theme suite:** 33 of 33, covering:
+  - every page and the dialog checked for AA contrast in both themes
+  - the setting kept after a restart, and the title bar
+  - the pill
+  - glass on and off
+- **Other checks:**
+  - unit tests 63 of 63
+  - full regression passed
+  - dictation time unchanged against pre-6.1, alternating: idle 2.15 s against 2.15 s, half load 3.40 s against 3.40 s
+- **Record:** `docs/testing/2026-11-23-themes.md`.
+
 ### 2026-11-22: Recording kit for the real-voice benchmark (test tools only; the app is unchanged)
 
 **Added**

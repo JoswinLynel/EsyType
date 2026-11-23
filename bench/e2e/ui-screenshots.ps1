@@ -3,7 +3,7 @@
 # Uses its own empty test profile, so the empty states show (-Seeded: filled lists). Nothing else on screen is touched.
 # -Setup: the eight first-run steps instead, on a profile with no model (served by model-server.py from the files
 # already in firstrun-serve, so nothing comes from the internet).
-param([double]$Zoom = 1, [int]$Width = 980, [int]$Height = 720, [string]$Out = "D:\AI Projects\Tools\e2e\shots", [switch]$Setup, [switch]$Seeded, [int]$Port = 8767,
+param([double]$Zoom = 1, [int]$Width = 980, [int]$Height = 720, [string]$Out = "D:\AI Projects\Tools\e2e\shots", [switch]$Setup, [switch]$Seeded, [int]$Port = 8767, [ValidateSet('system', 'dark', 'light')][string]$Theme = 'system',
       [string]$Exe = "D:\AI Projects\Tools\e2e\bin\esytype-e2e.exe", [string]$Work = "D:\AI Projects\Tools\e2e")
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'uia.ps1')
@@ -28,13 +28,13 @@ if ($Setup) {
   $server = Start-Process python -ArgumentList '-I', "`"$(Join-Path $PSScriptRoot 'model-server.py')`"", "`"$(Join-Path $Work 'firstrun-serve')`"", $Port, '--rate', 4000000 -PassThru -WindowStyle Hidden
   $env:ESYTYPE_MODEL_BASE_URL = "http://127.0.0.1:$Port"
 } else {
-[ordered]@{ model = 'base'; ptt = 'Ctrl+F8'; toggle = 'Ctrl+F7'; undo_shortcut = 'Ctrl+F9'; paste_last_shortcut = 'Ctrl+F10'; models_dir = (Join-Path $Work 'restart-models'); start_with_windows = $false } |
+[ordered]@{ model = 'base'; ptt = 'Ctrl+F8'; toggle = 'Ctrl+F7'; undo_shortcut = 'Ctrl+F9'; paste_last_shortcut = 'Ctrl+F10'; models_dir = (Join-Path $Work 'restart-models'); start_with_windows = $false; theme = $Theme } |
   ConvertTo-Json | Set-Content (Join-Path $data 'settings.json') -Encoding ascii
   # -Seeded: filled lists, from the profile polish-e2e.ps1 leaves behind
   if ($Seeded) { Copy-Item (Join-Path $Work 'localappdata-polish\EsyAI\EsyType\esytype.db') $data }
 }
 $env:LOCALAPPDATA = $lad; $env:ESYTYPE_TEST_ZOOM = "$Zoom"
-$tag = "z$($Zoom)-w$Width" + $(if ($Seeded) { '-seeded' } else { '' })
+$tag = "z$($Zoom)-w$Width" + $(if ($Seeded) { '-seeded' } else { '' }) + $(if ($Theme -ne 'system') { "-$Theme" } else { '' })
 $app = Start-Process $Exe -PassThru -RedirectStandardError (Join-Path $Work 'shots-trace.txt'); Start-Sleep 9
 try {
   $root = Get-AppWindow $app.Id 'EsyType'; $h = [IntPtr]$root.Current.NativeWindowHandle
