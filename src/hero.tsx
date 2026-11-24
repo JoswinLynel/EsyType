@@ -1,6 +1,7 @@
 // The page hero and the voice wave (Mac design system: PageHero, SpeakingWave). The wave keeps EsyType's own colours,
 // amber, white and blue as in the logo (owner, 24 Nov), not the Mac's purple middle.
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { remember, remembered } from "./ui";
 
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -76,9 +77,9 @@ export type HeroSpec = {
 
 const foldKey = (id: string) => "et-hero-" + id;
 function useFold(id: string) {
-  const [folded, set] = useState(() => { try { return localStorage.getItem(foldKey(id)) === "folded"; } catch { return false; } });
-  useEffect(() => { try { set(localStorage.getItem(foldKey(id)) === "folded"); } catch { /* not kept */ } }, [id]);
-  const setFolded = (f: boolean) => { set(f); try { localStorage.setItem(foldKey(id), f ? "folded" : "open"); } catch { /* not kept */ } };
+  const [folded, set] = useState(() => remembered(foldKey(id)) === "folded");
+  useEffect(() => { set(remembered(foldKey(id)) === "folded"); }, [id]);
+  const setFolded = (f: boolean) => { set(f); remember(foldKey(id), f ? "folded" : "open"); };
   return [folded, setFolded] as const;
 }
 

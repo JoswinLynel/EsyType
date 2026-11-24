@@ -371,3 +371,37 @@ kbd { font: 600 12px/16px var(--et-font-mono); padding: 3px 8px; border-radius: 
   .switch::before { forced-color-adjust: none; background: Canvas; border: 1px solid ButtonText; } .switch.on::before { background: Highlight; }
   .switch i { forced-color-adjust: none; background: ButtonText; }
 }
+
+/* Dictation home (Mac design: Dictation (home)) */
+.home { display: flex; flex-direction: column; gap: 6px; }
+.home-top { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; align-items: stretch; margin-bottom: 20px; }
+.home-top .hero { margin-bottom: 0; }
+.numbers { display: flex; flex-direction: column; border-radius: 18px; background: var(--et-glass-1); border: 1px solid var(--et-border); box-shadow: var(--et-shadow-card); overflow: hidden; }
+.numbers button { border: none; background: none; text-align: left; cursor: pointer; padding: 26px; display: grid; }
+.numbers button:hover { background: var(--et-hover); }
+.numbers-stats { gap: 10px; flex: 1; align-content: center; }
+.stat { font-size: 16px; color: var(--et-text-2); }
+.stat b { font: 400 38px/44px var(--et-font-figures); color: var(--et-text-1); margin-right: 8px; font-variant-numeric: lining-nums tabular-nums; }
+.numbers-words { gap: 4px; border-top: 1px solid var(--et-border) !important; }
+.numbers-title { font-size: 18px; font-weight: 600; }
+.permission { display: grid; gap: 4px; }
+.permission h2 { margin: 0; font-size: 16px; }
+.perm-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.perm-row > div { flex: 1; }
+.perm-row p { margin: 0; }
+.perm-title { font-size: 14px; font-weight: 600; }
+.perm-dot { width: 18px; height: 18px; border-radius: 50%; border: 1.5px dashed var(--et-text-3); }
+.recent { display: grid; gap: 18px; }
+.day-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 32px; }
+.day-eyebrow { font-size: 10.5px; line-height: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--et-text-4); }
+.day-card { list-style: none; margin: 0; padding: 0; border-radius: 18px; background: var(--et-glass-1); border: 1px solid var(--et-border); box-shadow: var(--et-shadow-card); }
+.day-card li { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 0; padding: 18px 28px; }
+.day-card li + li { border-top: 1px solid var(--et-border); }
+.day-time { font-size: 13px; color: var(--et-text-4); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.day-text { margin: 0; font-size: 15px; line-height: 21px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; user-select: text; }
+.recent-empty { margin: 0; }
+.icon-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--et-border); background: var(--et-surface-raised); color: var(--et-text-2); display: grid; place-items: center; cursor: pointer; }
+.icon-btn:hover { color: var(--et-text-1); background: var(--et-hover); }
+.card-eyebrow { display: block; padding: 0 0 12px; }
+@media (max-width: 1000px) { .home-top { grid-template-columns: 1fr; } }
+@media (forced-colors: active) { .numbers, .day-card { border: 1px solid CanvasText; } .perm-dot { border-color: CanvasText; } }

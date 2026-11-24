@@ -7,7 +7,7 @@ import { ask, Banner, Empty, exported, ListHead, listArrows, NoMatch, SearchBox,
 export type HistorySettings = {
   history_enabled: boolean; history_retention_days: number; history_record_app: boolean; history_keep_raw: boolean;
 };
-type Entry = {
+export type Entry = {
   id: number; created_at: number; raw_text: string | null; final_text: string; edited_text: string | null;
   model: string; mode: string; style: string | null; undone: boolean; audio_ms: number; outcome: string; app: string | null; word_count: number;
 };
@@ -168,7 +168,7 @@ export function HistoryPage({ settings, available, dbError, openPrivacy, tryIt }
             {!loaded ? <SkeletonRows /> : items.length === 0 ? (
               query ? <NoMatch query={query} clear={() => setQuery("")} />
                 : settings.history_enabled
-                  ? <Empty icon="history" title="Nothing here yet" text="Your dictations appear here as you speak." action={<button className="btn primary" onClick={tryIt}>Try it</button>} />
+                  ? <Empty icon="history" title="Nothing here yet" text="Your dictations appear here as you speak. Try one in the Scratchpad." action={<button className="btn primary" onClick={tryIt}>Open Scratchpad</button>} />
                   : <Empty icon="history" title="History is off" text="New dictations are not saved." action={<button className="btn primary" onClick={openPrivacy}>Privacy settings</button>} />
             ) : (
               <ul className="entries" ref={list} onKeyDown={listArrows}>{items.map((e) => <Item key={e.id} e={e} onChange={() => load()} deleting={deleting} />)}</ul>

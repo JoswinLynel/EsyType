@@ -25,7 +25,7 @@ Every page exists with its core features: Dictation, History (search, retention,
 - **Speaking wave** on a canvas at 30 frames a second, the spec's formula, paused when the window is hidden or not in front, one still frame with reduced motion.
 - Tokens and type scale from the spec (surface, glass, hairlines, radii, shadows; Georgia, Cambria figures, Segoe UI Variable, Cascadia Mono); buttons (accent, pill, danger pill, dark, icon, hero), segmented control, switch rows, filter chips, count badges, empty states, focus ring.
 
-### 3.2 Dictation home and recording pill (milestone B)
+### 3.2 Dictation home and recording pill (milestone B): the Dictation page and usage totals done in test build, 24 Nov (`docs/testing/2026-11-24-mac-design-b.md`). The pill is left as it is (owner, 24 Nov)
 - Greeting "Welcome back, <first name>" (new setting: your name).
 - Permissions card when the microphone is blocked in Windows' privacy settings.
 - Hero "Your voice, typed *anywhere*." with the configured keys and "Set your style".

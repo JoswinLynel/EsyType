@@ -154,6 +154,7 @@ try {
   Quit
   Launch
   Check 'Existing user, window opened: the normal window' ([bool](Find-El $root 'Dictation' $CT::Button -Tries 15) -and -not ((Texts) -match 'Step \d of 8')) ''
+  Invoke-El (Find-El $root 'Style' $CT::Button); Start-Sleep 1
   (Find-El $root 'Verbatim*' $CT::RadioButton -Like).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep 1   # any change saves
   $st = Settings
   Check 'Existing user: first save records setup done, keeps the rest' ($st.setup_done -eq $true -and $st.text_mode -eq 'verbatim' -and $st.ptt -eq 'Ctrl+F8' -and $st.history_retention_days -eq 30 -and $st.models_dir -eq $old.models_dir) ''

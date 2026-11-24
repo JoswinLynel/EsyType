@@ -33,6 +33,13 @@ elif cmd == "many":
     for b in ("Shopping list", "Ideas"):
         c.execute("INSERT INTO scratchpad_notes (body, created_at, updated_at) VALUES (?, ?, ?)", (b, now, now))
     c.commit()
+elif cmd == "usage":
+    # four days of usage totals: today, yesterday, two days ago (a 3-day streak) and five days ago;
+    # 12,400 words in 100 minutes of speech: "12.4K" and 124 wpm
+    c = sqlite3.connect(sys.argv[2])
+    for d in (0, 1, 2, 5):
+        c.execute("INSERT INTO usage_days (day, dictations, words, audio_ms) VALUES (date('now', 'localtime', ?), 10, 3100, 1500000)", (f"-{d} days",))
+    c.commit()
 elif cmd == "query":
     print(json.dumps(sqlite3.connect(sys.argv[2]).execute(sys.argv[3]).fetchall()))
 elif cmd == "counts":

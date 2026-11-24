@@ -95,7 +95,7 @@ try {
   Check 'Clean: word spelled exactly' ($r.Inserted -cmatch 'PostgreSQL') ''
   $uses = (Entries | Where-Object { $_.term -eq 'Tori' }).uses
   Check 'Use counted' ($uses -ge 1) "uses=$uses"
-  Invoke-El (Btn 'Dictation'); Start-Sleep 0.5
+  Invoke-El (Btn 'Style'); Start-Sleep 1   # Clean or Verbatim is on the Style page since the Mac design
   (Find-El $root 'Verbatim*' $CT::RadioButton -Like).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep 1
   $r = Dictate 'The app is built with Tauri and Rust.'
   Check 'Verbatim: dictionary still applied' ($r.Inserted -match '\bTauri\b' -and $r.Row.mode -eq 'verbatim') "'$($r.Inserted)'"

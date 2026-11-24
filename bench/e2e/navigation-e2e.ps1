@@ -29,8 +29,8 @@ function Front {
   if ([Nv]::GetForegroundWindow() -ne $h) { throw 'The test build window is not in front; no keys sent.' }
 }
 # Each page's own mark: its heading (Dictation has the practice box instead).
-$pages = [ordered]@{ Dictation = 'Practice area'; Insights = 'Insights'; History = 'History'; Dictionary = 'Dictionary'; Snippets = 'Snippets'; Style = 'Style'; Scratchpad = 'Scratchpad' }
-function OnPage($p) { if ($p -eq 'Dictation') { [bool](Find-El $root 'Practice area' $CT::Edit) } else { [bool](Find-All $root $CT::Text | Where-Object { $_.Current.Name -eq $pages[$p] }) } }
+$pages = [ordered]@{ Dictation = 'Welcome back'; Insights = 'Insights'; History = 'History'; Dictionary = 'Dictionary'; Snippets = 'Snippets'; Style = 'Style'; Scratchpad = 'Scratchpad' }
+function OnPage($p) { if ($p -eq 'Dictation') { [bool](Find-El $root 'Welcome back' $CT::Text) } else { [bool](Find-All $root $CT::Text | Where-Object { $_.Current.Name -eq $pages[$p] }) } }
 
 $app = Start-Process $Exe -PassThru -RedirectStandardError (Join-Path $Work 'nav-trace.txt'); Start-Sleep 9
 try {

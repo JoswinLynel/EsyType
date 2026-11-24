@@ -4,6 +4,30 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-24: Mac design, milestone B (test build, not released)
+
+**Added**
+
+- The Dictation page from the Mac design:
+  - a greeting with your first name (new optional "Your name" in Settings ▸ General)
+  - a microphone card when Windows blocks the microphone
+  - the hero with your numbers: total words, words per minute and day streak, and your Dictionary and snippet counts
+  - the last 40 dictations grouped by day
+- Usage totals per day (migration v7, numbers only). They keep counting with History off; they start from your existing History; "Delete all EsyType data" removes them.
+
+**Changed**
+
+- Clean or Verbatim moved to the top of the Style page (still in the tray).
+- The "Try it" box left the Dictation page; History's empty state opens the Scratchpad instead.
+- The window remembers its page, Settings section and folded banners in EsyType's data folder.
+- The recording pill is unchanged.
+
+**Tests**
+
+- New home suite 12/12 and unit tests 64/64.
+- Full regression passed.
+- Record: `docs/testing/2026-11-24-mac-design-b.md`.
+
 ### 2026-11-24: Mac design, milestone A (test build, not released)
 
 **Added**

@@ -30,6 +30,15 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   );
 }
 
+// ---------- what the window remembers between launches ----------
+
+let memory: Record<string, string> = {};
+/** Loads the remembered values (last page, Settings section, folded banners) from EsyType's data folder. */
+export async function loadMemory() { memory = await invoke<Record<string, string>>("ui_state").catch(() => ({})); }
+export const remembered = (key: string): string | null => memory[key] ?? null;
+/** A convenience only: if it cannot be saved, the window simply opens as new next time. */
+export function remember(key: string, value: string) { memory[key] = value; invoke("ui_remember", { key, value }).catch(() => {}); }
+
 // ---------- confirmation dialog ----------
 
 /** `list`: lines shown as a list under the body. `check`: a tick box; its `value` is updated in place, so the caller reads it after the dialog closes. */

@@ -93,7 +93,7 @@ try {
 
   # 4. Verbatim, switched in the window
   $root = Get-AppWindow $app.Id 'EsyType'   # the test build's window, not an installed EsyType's
-  Invoke-El (Find-El $root 'Dictation' $CT::Button); Start-Sleep 0.5
+  Invoke-El (Find-El $root 'Style' $CT::Button); Start-Sleep 1   # Clean or Verbatim is on the Style page since the Mac design
   $radio = Find-El $root 'Verbatim*' $CT::RadioButton -Like
   if ($radio) { $radio.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep 1 }
   Check 'Window switch saves Verbatim' ((Get-Content $settingsFile -Raw | ConvertFrom-Json).text_mode -eq 'verbatim') ''

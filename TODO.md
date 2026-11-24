@@ -140,7 +140,9 @@ Not cancelled, not in progress. Rule-based Clean mode is the text processing; no
 - [x] 6.1 Theme system and glass materials: Dark, Light, Follow Windows; frosted dialogs; AA contrast in both themes (23 Nov, test build, `docs/testing/2026-11-23-themes.md`)
 - [x] Release 6.1 (0.4.0, installed 24 Nov)
 - [x] Mac design milestone A: sidebar, EsyMeet and Insights placeholders, Settings panel, heroes and the wave (24 Nov, test build, `docs/testing/2026-11-24-mac-design-a.md`; plan `docs/plans/mac-parity-gap-analysis.md`)
-- [ ] Mac design milestones B-F: Dictation home and pill, Insights, list pages, Settings rows, onboarding; Mica behind the window
+- [x] Mac design milestone B: Dictation page and usage totals; the pill left unchanged at your request (24 Nov, test build, `docs/testing/2026-11-24-mac-design-b.md`)
+- [ ] Mac design milestones C-F: Insights, list pages, Settings rows, onboarding; Mica behind the window
+- [ ] Update notification (check GitHub every 2-3 days, notify with Download): only when you ask
 - [ ] 6.3 Dictation screen and the glass recording pill (shape A or B chosen from screenshots)
 - [ ] 7.1 Profile and onboarding (name, theme step)
 - [ ] 8.0 Engine study (bench only): short audio window without repeated sentences

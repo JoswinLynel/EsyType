@@ -119,7 +119,7 @@ try {
   Check 'Try it shows each style' ((Find-El $root "Yes, I'm going to go." $CT::Text) -and (Find-El $root 'Yes, I am going to go.' $CT::Text)) ''
 
   # Verbatim: no style
-  Invoke-El (Btn 'Dictation'); Start-Sleep 0.5
+  Invoke-El (Btn 'Style'); Start-Sleep 1   # Clean or Verbatim is on the Style page since the Mac design
   (Find-El $root 'Verbatim*' $CT::RadioButton -Like).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep 1
   $r = Dictate $sentence
   Check 'Verbatim: style not applied' ($r.Inserted -eq $r.Row.raw_text -and $null -eq (Rows2)[-1].style) "'$($r.Inserted)'"

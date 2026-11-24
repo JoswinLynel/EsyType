@@ -10,7 +10,8 @@ import { ScratchpadPage, padOpen } from "./scratchpad";
 import { SECTIONS, SettingsPanel, SettingsProblem, type Progress, type Section, type Settings, type Status } from "./settings";
 import { Setup } from "./setup";
 import { PageTop, type HeroSpec } from "./hero";
-import { Banner, DialogHost, Empty, focusField, Icon, ToastHost, toastError, useDialogOpen, type IconName } from "./ui";
+import { Home, TextMode } from "./home";
+import { loadMemory, remember, remembered, Banner, DialogHost, Empty, focusField, Icon, ToastHost, toastError, useDialogOpen, type IconName } from "./ui";
 import "./styles.css";
 
 type Page = "dictation" | "meet" | "insights" | "history" | "dictionary" | "snippets" | "style" | "scratchpad";
@@ -45,9 +46,6 @@ const HEROES: Partial<Record<Page, HeroSpec>> = {
 };
 
 const isPage = (p: string | null): p is Page => PAGES.some((x) => x.id === p);
-/** Remembered between launches (a convenience: a missing or unreadable value just opens Dictation). */
-const remembered = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
-const remember = (key: string, v: string) => { try { localStorage.setItem(key, v); } catch { /* not kept */ } };
 
 function Sidebar({ page, setPage, status, engine, openSettings }: { page: Page; setPage: (p: Page) => void; status: Status; engine: string; openSettings: (s?: Section) => void }) {
   const nav = useRef<HTMLElement>(null);
@@ -92,58 +90,6 @@ function Meet() {
     <section className="panel">
       <Empty icon="meet" title="EsyMeet is coming" text="Live transcription of your meetings, worked out on this PC like your dictation. It isn’t built yet." />
     </section>
-  );
-}
-
-const OUTCOME_NOTE: Record<string, string> = {
-  Copied: " · not typed because the window changed (copied instead)",
-  Typed: " · typed (your clipboard held non-text content)",
-  Failed: " · not confirmed: the app didn't take the text. It is in History.",
-};
-
-function Home({ status, save, engine, openSettings, openStyle }: { status: Status; save: (p: Partial<Settings>) => Promise<boolean>; engine: string; openSettings: () => void; openStyle: () => void }) {
-  const s = status.settings;
-  const clean = s.text_mode !== "verbatim";
-  return (
-    <>
-      <h1 className="welcome">Welcome back</h1>
-      <PageTop id="dictation" foldable={false} hero={{ headline: ["Your voice, typed ", "anywhere", "."], glow: "var(--et-mark-amber)",
-        message: <>Hold <kbd>{s.ptt}</kbd> in any app and speak. Or press <kbd>{s.toggle}</kbd> to start and stop. <kbd>Esc</kbd> cancels. It all stays on this PC.</>,
-        actions: heroBtn("Set your style", openStyle) }} />
-      {!status.shortcuts_ok && <Banner tone="red" action={<button className="btn sm" onClick={openSettings}>Change shortcuts</button>}>A shortcut could not be registered; another app may be using it.</Banner>}
-      {engine === "error" && <Banner tone="red" action={<button className="btn sm" onClick={openSettings}>Speech model settings</button>}>The speech model could not be loaded, so dictation is not available.</Banner>}
-
-      <section className="panel">
-        <h2>Try it</h2>
-        <textarea id="practice" placeholder="Click here, then hold the shortcut and speak." aria-label="Practice area" />
-      </section>
-
-      <section className="panel">
-        <h2>Last dictation</h2>
-        {status.last ? (
-          <p className="small">Last: {status.last.audio_seconds.toFixed(1)} s of speech transcribed in {status.last.seconds.toFixed(1)} s{OUTCOME_NOTE[status.last.outcome] ?? ""}</p>
-        ) : (
-          <Empty icon="dictation" title="Nothing dictated yet" text="Your first dictation will appear here: how long you spoke and how quickly it was typed." />
-        )}
-      </section>
-
-      <section className="panel">
-        <h2>Text</h2>
-        <div className="choice" role="radiogroup" aria-label="Text mode">
-          <label className={"card" + (clean ? " selected" : "")}>
-            <input type="radio" name="mode" checked={clean} onChange={() => save({ text_mode: "clean" })} />
-            <span className="name">Clean</span>
-            <span className="small">Removes fillers like "um", follows "scratch that" and "new line", formats numbers, money, dates and times, fixes capitals. Same words otherwise.</span>
-          </label>
-          <label className={"card" + (!clean ? " selected" : "")}>
-            <input type="radio" name="mode" checked={!clean} onChange={() => save({ text_mode: "verbatim" })} />
-            <span className="name">Verbatim</span>
-            <span className="small">Exactly what the speech engine heard.</span>
-          </label>
-        </div>
-        <p className="small">Also in the tray menu. Clean's options are in <a href="#" onClick={(e) => { e.preventDefault(); openSettings(); }}>Settings</a>.</p>
-      </section>
-    </>
   );
 }
 
@@ -275,15 +221,15 @@ function App() {
                 <p className="lead">{info.lead}</p>
               </header>
             ))}
-            {page === "dictation" ? <Home status={status} save={save} engine={engine} openSettings={() => openSettings()} openStyle={() => setPage("style")} />
+            {page === "dictation" ? <Home status={status} engine={engine} openSettings={(at) => openSettings(at)} go={setPage} />
               : page === "meet" ? <Meet />
               : page === "insights" ? <section className="panel"><Empty icon="insights" title="Your numbers are on their way" text="Words dictated, speed, time saved and your activity arrive in the next step." /></section>
               : page === "history" ? <HistoryPage settings={status.settings} {...db} openPrivacy={() => openSettings("privacy")}
-                tryIt={() => { setPage("dictation"); focusField("practice"); }} />
+                tryIt={() => { setPage("scratchpad"); focusField("note-text"); }} />
               : page === "dictionary" ? <DictionaryPage {...db} hint={status.settings.dictionary_hint} hintWords={status.dictionary_hint_words} setHint={async (on) => { await save({ dictionary_hint: on }); }}
                 builtin={status.settings.builtin_vocabulary} setBuiltin={async (on) => { await save({ builtin_vocabulary: on }); }} />
               : page === "snippets" ? <SnippetsPage {...db} />
-              : page === "style" ? <StylePage settings={status.settings} save={async (p) => { await save(p); }} cleanOn={status.settings.text_mode !== "verbatim"} />
+              : page === "style" ? <><TextMode settings={status.settings} save={save} /><StylePage settings={status.settings} save={async (p) => { await save(p); }} cleanOn={status.settings.text_mode !== "verbatim"} /></>
               : <ScratchpadPage {...db} />}
           </div>
         </main>
@@ -299,4 +245,4 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+loadMemory().finally(() => createRoot(document.getElementById("root")!).render(<App />));

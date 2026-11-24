@@ -27,7 +27,7 @@ function Copies { @(Get-ChildItem $data -Filter 'settings.damaged-*.json') }
 function Launch { $script:app = Start-Process $Exe -PassThru -RedirectStandardError (Join-Path $Work 'recovery-trace.txt'); Start-Sleep 9; $script:root = Get-AppWindow $app.Id 'EsyType'; $script:h = [IntPtr]$root.Current.NativeWindowHandle }
 function Quit { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue; Start-Sleep 2 }
 # The banner's sentence is split into several text pieces; join everything after its start.
-function BannerText { $t = (Find-All $root $CT::Text | ForEach-Object { $_.Current.Name }) -join ' '; if ($t -match 'could not be read') { $t } }   # the window's text, if the banner is there
+function BannerText { for ($k = 0; $k -lt 12; $k++) { $t = (Find-All $root $CT::Text | ForEach-Object { $_.Current.Name }) -join ' '; if ($t -match 'could not be read') { return $t }; if ($t -match 'Welcome back') { return }; Start-Sleep -Milliseconds 250 } }   # waits for the page   # the window's text, if the banner is there
 
 try {
   # 1. One value of the wrong type
@@ -40,8 +40,8 @@ try {
   Check 'One bad value: original copied aside, unchanged' ((Copies).Count -eq 1 -and [IO.File]::ReadAllText((Copies)[0].FullName) -eq $one) "$((Copies).Name)"
   Check 'One bad value: settings.json not rewritten at start' ([IO.File]::ReadAllText($file) -eq $one) ''
   Check 'One bad value: kept values in use (sidebar shows the model)' ([bool](Find-El $root 'Local*Base*' $CT::Button -Like -Tries 20)) ''
-  # dictation with the kept shortcut (Ctrl+F8) into the practice box
-  $box = Find-El $root 'Practice area' $CT::Edit
+  # dictation with the kept shortcut (Ctrl+F8) into a new Scratchpad note
+  Invoke-El (Find-El $root 'Scratchpad' $CT::Button); Start-Sleep 1; Invoke-El (Find-El $root 'New note' $CT::Button); Start-Sleep 0.8; $box = Find-El $root 'Note' $CT::Edit
   for ($k = 0; $k -lt 6 -and [Sr]::GetForegroundWindow() -ne $h; $k++) { [Sr]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
   if ([Sr]::GetForegroundWindow() -ne $h) { throw 'The test build window is not in front; no keys sent.' }
   $box.SetFocus(); Start-Sleep 0.4

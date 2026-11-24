@@ -121,8 +121,9 @@ try {
   $st = Settings
   Check 'Restore: everything back, settings from the backup' ((Counts) -eq '2/1/1/1' -and $st.ptt -eq 'Ctrl+F6' -and $st.text_mode -eq 'verbatim' -and $st.mic -eq $null) "$(Counts) $($st.ptt) $($st.text_mode)"
   Check 'Restore: safety copy made' (@(Get-ChildItem (Join-Path $data 'before-restore') -Filter '*.esytype-backup').Count -eq 1) ''
-  Page 'Dictation'
-  $box = Find-El $root 'Practice area' $CT::Edit
+  Page 'Scratchpad'
+  Invoke-El (Find-El $root 'New note' $CT::Button); Start-Sleep 0.8
+  $box = Find-El $root 'Note' $CT::Edit
   for ($k = 0; $k -lt 8 -and [Dm]::GetForegroundWindow() -ne $h; $k++) { [Dm]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
   if ([Dm]::GetForegroundWindow() -ne $h) { throw 'The test build window is not in front; no keys sent.' }
   $box.SetFocus(); Start-Sleep 0.4

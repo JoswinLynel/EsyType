@@ -98,9 +98,9 @@ try {
   Check 'Every visible button at least 32 px high, on every page' ($small.Count -eq 0) ($small -join '; ')
 
   Go 'History'
-  $ok = (Has 'Nothing here yet') -and (Has 'Your dictations appear here as you speak.')
+  $ok = (Has 'Nothing here yet') -and (Has 'Your dictations appear here as you speak.*')
   Press $emptyBtn
-  Check 'History empty: Try it opens Dictation with the cursor in the practice box' ($ok -and (Active) -eq 'Practice area@-1') "focus: $(Active)"
+  Check 'History empty: Open Scratchpad puts the cursor in the note' ($ok -and (Active) -eq 'Note@-1') "focus: $(Active)"
   Go 'Dictionary'
   $ok = Has 'Your dictionary is empty'
   Press $emptyBtn
@@ -227,9 +227,9 @@ try {
   Check 'Style: deleting a rule shows a toast; count follows' ((Has 'Deleted the rule for *') -and (Has 'Apps (1)')) ''
 
   # ---------- 3. Dictation: live region and tray ----------
-  Go 'Dictation'
+  Go 'Scratchpad'; Invoke-El (Find-El $root 'New note' $CT::Button); Start-Sleep 0.8
   $live = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition($UA::AutomationIdProperty, 'dictation-status')))
-  FocusOn (Named 'Practice area')
+  FocusOn (Named 'Note')
   $seen = [System.Collections.Generic.List[string]]::new()
   function Read-Live { $n = Js "document.getElementById('dictation-status').textContent"; if ($n -and ($seen.Count -eq 0 -or $seen[-1] -ne $n)) { $seen.Add($n) } }
   try { [Po]::Down(0x11); [Po]::Down(0x77); for ($i = 0; $i -lt 9; $i++) { Read-Live; Start-Sleep -Milliseconds 100 } } finally { [Po]::Up(0x77); [Po]::Up(0x11) }

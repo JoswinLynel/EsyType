@@ -60,6 +60,16 @@ const MIGRATIONS: &[&str] = &[
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
     );",
+    // v7: usage totals per local day, numbers only (no text), kept even when History is off or trimmed;
+    // started from the History already on this PC
+    "CREATE TABLE usage_days (
+        day        TEXT PRIMARY KEY,           -- local date, YYYY-MM-DD
+        dictations INTEGER NOT NULL,
+        words      INTEGER NOT NULL,
+        audio_ms   INTEGER NOT NULL
+    );
+    INSERT INTO usage_days (day, dictations, words, audio_ms)
+        SELECT date(created_at / 1000, 'unixepoch', 'localtime'), count(*), sum(word_count), sum(audio_ms) FROM transcripts GROUP BY 1;",
 ];
 
 /// The schema version this EsyType writes.
@@ -70,6 +80,31 @@ pub fn latest_schema() -> i64 {
 #[cfg(test)]
 pub fn migration(i: usize) -> &'static str {
     MIGRATIONS[i]
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct Usage {
+    pub words: i64,
+    pub audio_ms: i64,
+    pub dictations: i64,
+    /// First day with a dictation, YYYY-MM-DD.
+    pub since: Option<String>,
+    pub streak: i64,
+    pub dictionary: i64,
+    pub snippets: i64,
+}
+
+/// Days in a row with dictation, ending today, or yesterday if nothing yet today. `days`: day numbers, newest first.
+pub fn streak(days: &[i64], today: i64) -> i64 {
+    let Some(&first) = days.first() else { return 0 };
+    if first != today && first != today - 1 {
+        return 0;
+    }
+    let mut n = 1;
+    while (n as usize) < days.len() && days[n as usize] == first - n {
+        n += 1;
+    }
+    n
 }
 
 pub fn db_path() -> PathBuf {
@@ -167,6 +202,35 @@ impl History {
             )
             .map_err(err)?;
         Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Counts a finished dictation in today's usage totals (numbers only), whether or not History is on.
+    // shortcut: a dictation later undone still counts; subtract it in mark_undone if Insights needs exact figures.
+    pub fn add_usage(&self, words: i64, audio_ms: i64) -> Result<(), String> {
+        self.conn
+            .execute(
+                "INSERT INTO usage_days (day, dictations, words, audio_ms) VALUES (date('now', 'localtime'), 1, ?1, ?2)
+                 ON CONFLICT(day) DO UPDATE SET dictations = dictations + 1, words = words + ?1, audio_ms = audio_ms + ?2",
+                params![words, audio_ms],
+            )
+            .map(|_| ())
+            .map_err(err)
+    }
+
+    /// All-time totals, the current day streak and how many Dictionary words and snippets there are.
+    pub fn usage(&self) -> Result<Usage, String> {
+        let (words, audio_ms, dictations, since): (i64, i64, i64, Option<String>) = self
+            .conn
+            .query_row("SELECT coalesce(sum(words), 0), coalesce(sum(audio_ms), 0), coalesce(sum(dictations), 0), min(day) FROM usage_days", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .map_err(err)?;
+        let today: i64 = self.conn.query_row("SELECT CAST(julianday(date('now', 'localtime')) AS INTEGER)", [], |r| r.get(0)).map_err(err)?;
+        let mut st = self.conn.prepare("SELECT CAST(julianday(day) AS INTEGER) FROM usage_days WHERE dictations > 0 ORDER BY day DESC").map_err(err)?;
+        let days: Vec<i64> = st.query_map([], |r| r.get(0)).map_err(err)?.collect::<Result<_, _>>().map_err(err)?;
+        let (dictionary, snippets): (i64, i64) = self
+            .conn
+            .query_row("SELECT (SELECT count(*) FROM dictionary), (SELECT count(*) FROM snippets)", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(err)?;
+        Ok(Usage { words, audio_ms, dictations, since, streak: streak(&days, today), dictionary, snippets })
     }
 
     /// Newest first. `query` matches the inserted or edited text, case-insensitively.
@@ -272,7 +336,7 @@ impl History {
     /// database file, its log or upgrade backups.
     pub fn clear_everything(&self) -> Result<(), String> {
         self.conn
-            .execute_batch("DELETE FROM transcripts; DELETE FROM dictionary; DELETE FROM snippets; DELETE FROM scratchpad_notes; VACUUM;")
+            .execute_batch("DELETE FROM transcripts; DELETE FROM dictionary; DELETE FROM snippets; DELETE FROM scratchpad_notes; DELETE FROM usage_days; VACUUM;")
             .map_err(err)?;
         self.conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())).map_err(err)?;
         remove_backups(&self.path);
@@ -365,6 +429,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir.join("esytype.db")
+    }
+
+    #[test]
+    fn usage_totals_streak_and_backfill() {
+        assert_eq!(streak(&[], 100), 0);
+        assert_eq!(streak(&[100, 99, 98, 96], 100), 3);
+        assert_eq!(streak(&[99, 98], 100), 2, "nothing yet today keeps yesterday's streak");
+        assert_eq!(streak(&[98, 97], 100), 0);
+        // an older database: its History becomes the starting totals
+        let p = temp_db("usage");
+        {
+            let c = Connection::open(&p).unwrap();
+            for sql in &MIGRATIONS[..6] { c.execute_batch(sql).unwrap(); }
+            c.pragma_update(None, "user_version", 6).unwrap();
+            c.execute("INSERT INTO transcripts (created_at, final_text, mode, model, audio_ms, processing_ms, outcome, word_count) VALUES (?1, 'one two three', 'clean', 'base', 3000, 1, 'pasted', 3)", params![now_ms()]).unwrap();
+        }
+        let h = History::open(&p).unwrap();
+        let u = h.usage().unwrap();
+        assert_eq!((u.words, u.audio_ms, u.dictations, u.streak), (3, 3000, 1, 1));
+        h.add_usage(5, 2000).unwrap();
+        h.clear_all().unwrap(); // clearing History keeps the totals
+        let u = h.usage().unwrap();
+        assert_eq!((u.words, u.audio_ms, u.dictations, u.streak), (8, 5000, 2, 1));
+        h.clear_everything().unwrap(); // Delete all EsyType data removes them
+        assert_eq!(h.usage().unwrap().dictations, 0);
     }
 
     #[test]

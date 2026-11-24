@@ -52,6 +52,8 @@ pub struct Settings {
     pub setup_done: Option<bool>,
     /// "system" (follow Windows' app mode), "dark" or "light". Anything else is treated as "system".
     pub theme: String,
+    /// Optional; its first word greets you on the Dictation page. Kept only in this file.
+    pub user_name: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -135,6 +137,7 @@ impl Default for Settings {
             undo_never: ["WindowsTerminal.exe", "OpenConsole.exe", "mintty.exe", "alacritty.exe", "wezterm-gui.exe", "wsl.exe"].iter().map(|s| s.to_string()).collect(),
             setup_done: None,
             theme: "system".into(),
+            user_name: String::new(),
         }
     }
 }
@@ -476,6 +479,7 @@ mod tests {
         assert_eq!(s.text_mode, "clean");
         assert_eq!(s.style_default, "standard");
         assert_eq!(s.theme, "system", "older settings files follow Windows' light or dark mode");
+        assert_eq!(s.user_name, "", "older settings files have no name");
         assert_eq!(s.style_name(Some("outlook.exe")), "professional", "rules match any case");
         assert_eq!(s.style_name(Some("Slack.exe")), "casual");
         assert_eq!(s.style_name(Some("notepad.exe")), "standard");

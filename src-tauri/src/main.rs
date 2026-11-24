@@ -181,6 +181,32 @@ fn apply_theme(app: &AppHandle, theme: &str) {
 
 /// Windows' "Transparency effects" switch (Settings > Personalisation > Colours), which also goes off in battery saver.
 /// The window uses frosted glass only while it is on.
+/// Small things the window remembers between launches (last page, last Settings section, folded banners), kept in
+/// EsyType's data folder rather than the webview's storage, so each profile has its own.
+fn ui_state_path() -> std::path::PathBuf {
+    settings::data_dir().join("ui-state.json")
+}
+static UI_STATE: Mutex<()> = Mutex::new(());
+
+#[tauri::command]
+fn ui_state() -> serde_json::Value {
+    let _g = UI_STATE.lock();
+    std::fs::read_to_string(ui_state_path()).ok().and_then(|s| serde_json::from_str(&s).ok()).filter(|v: &serde_json::Value| v.is_object()).unwrap_or_else(|| json!({}))
+}
+
+#[tauri::command]
+fn ui_remember(key: String, value: String) -> Result<(), String> {
+    if key.len() > 64 || value.len() > 256 {
+        return Err("Too long.".into());
+    }
+    let mut v = ui_state();
+    let _g = UI_STATE.lock();
+    v[key] = json!(value);
+    let p = ui_state_path();
+    let tmp = p.with_extension("json.tmp");
+    std::fs::write(&tmp, v.to_string()).and_then(|_| std::fs::rename(&tmp, &p)).map_err(|e| e.to_string())
+}
+
 /// Whether Windows' microphone privacy switches let desktop apps use the microphone (Settings, Privacy, Microphone).
 /// A missing value means Windows has not been asked to block it.
 #[tauri::command]
@@ -468,7 +494,14 @@ fn style_label(name: Option<&str>) -> String {
 fn record(app: &AppHandle, raw: &str, final_text: &str, outcome: &str, mode: &str, style: Option<&str>, secs: f64, audio_s: f64, exe: Option<&str>, used: &[i64], snip_used: &[i64]) -> Option<i64> {
     let s = app.state::<Shared>();
     let st = s.settings.lock().unwrap().clone();
+    // Usage totals (numbers only) are kept even with History off (owner's decision, 22 Nov).
+    if let Some(h) = s.history.lock().ok().as_ref().and_then(|g| g.as_ref()) {
+        if let Err(e) = h.add_usage(final_text.split_whitespace().count() as i64, (audio_s * 1000.0) as i64) {
+            eprintln!("usage: {e}");
+        }
+    }
     if !st.history_enabled {
+        let _ = app.emit("usage", ());
         return None; // history off: no transcription text is written anywhere
     }
     let model = s.loaded.lock().unwrap().clone().unwrap_or_default();
@@ -1171,6 +1204,11 @@ fn with_history<T>(app: &AppHandle, f: impl FnOnce(&history::History) -> Result<
 }
 
 #[tauri::command]
+fn usage_summary(app: AppHandle) -> Result<history::Usage, String> {
+    with_history(&app, |h| h.usage())
+}
+
+#[tauri::command]
 fn history_list(app: AppHandle, query: String, offset: i64) -> Result<serde_json::Value, String> {
     let days = app.state::<Shared>().settings.lock().unwrap().history_retention_days;
     // Expired entries go before anything is shown, even if EsyType has been idle since they expired.
@@ -1833,7 +1871,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy,
+        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy, usage_summary, ui_state, ui_remember,
             dict_list, dict_add, dict_update, dict_delete, dict_clear, dict_import, dict_export, snip_list, snip_add, snip_update, snip_delete, snip_clear, snip_import, snip_export, snip_preview, style_preview, recent_apps, notes_list, note_get, note_create, note_save, note_delete, notes_clear, note_export, flushed, show_in_folder, dismiss_settings_problem, open_folder, check_shortcut, pause_shortcuts, mic_test, hide_window, history_export, settings_export, settings_import_preview, settings_import_apply, backup_now, backup_check, backup_forget, restore_backup, undo_restore, delete_all_data, copy_text, pill_cancel, pill_copy, pill_original, pill_undo, pill_use_original, pill_stop])
         .run(context)
         .expect("EsyType failed to start");

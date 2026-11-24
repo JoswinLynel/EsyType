@@ -86,7 +86,7 @@ Alternating blocks of 3 dictations, 8 blocks per build (A B B A, then B A A B B 
 | Open on Dictation, in front (wave moving) | 0.00 s | 1.2–1.7 s (about 12–17% of one core) |
 
 **The wave has no route to slowing a dictation into another app:** it stops whenever EsyType is not in front.
-- **Re-time before release:** the dictation times should be measured again on a quiet day.
+- **Re-timed on a quiet PC the same evening** (milestone B record, section 3): 2.2 s pre-6.1 against 2.15 s, no difference.
 - **Tried, didn't help:**
   - **Fewer redraws:** building the gradient once per size changed nothing.
   - **Fade:** drawing it in the canvas instead of a CSS mask saved about 15%, and was kept.

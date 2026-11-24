@@ -99,7 +99,7 @@ try {
   Check 'Anywhere: link inserted in the sentence' ($r.Inserted -match 'https://meet\.example\.com/jo' -and $r.Inserted -match 'today') "'$($r.Inserted)' (heard '$($r.Row.raw_text)')"
   $uses = (Entries | Where-Object { $_.trigger -eq 'my email signature' }).uses
   Check 'Use counted' ($uses -ge 1) "uses=$uses"
-  Invoke-El (Btn 'Dictation'); Start-Sleep 0.5
+  Invoke-El (Btn 'Style'); Start-Sleep 1   # Clean or Verbatim is on the Style page since the Mac design
   (Find-El $root 'Verbatim*' $CT::RadioButton -Like).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep 1
   $r = Dictate 'My email signature.'
   Check 'Verbatim: snippet still applied' (($r.Inserted -replace "`r", '') -eq $sigOut -and $r.Row.mode -eq 'verbatim') ''

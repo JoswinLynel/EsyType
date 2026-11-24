@@ -191,8 +191,8 @@ try {
   Check 'Delete all asks first; Cancel deletes nothing' ((Rows).Count -eq $n + 1 -and $msg -match 'cannot be undone') "'$msg'"
   Invoke-El (Find-El $root 'Delete all history' $CT::Button); [void](Answer-Dialog $root 'Delete all'); Start-Sleep 1.5
   $left = @('apples', 'conjurer', 'entrance') | Where-Object { InFiles $_ }
-  $other = @(Get-ChildItem $data -File | Where-Object { $_.Name -notmatch '^(settings\.json|esytype\.db(-wal|-shm)?)$' })
-  Check 'Delete all: no records left' ((Rows).Count -eq 0 -and (Items).Count -eq 0 -and (Find-El $root 'Nothing here yet' $CT::Text) -and (Find-El $root 'Try it' $CT::Button)) ''
+  $other = @(Get-ChildItem $data -File | Where-Object { $_.Name -notmatch '^(settings\.json|ui-state\.json|esytype\.db(-wal|-shm)?)$' })
+  Check 'Delete all: no records left' ((Rows).Count -eq 0 -and (Items).Count -eq 0 -and (Find-El $root 'Nothing here yet' $CT::Text) -and (Find-El $root 'Open Scratchpad' $CT::Button)) ''
   Check 'Delete all: text not recoverable from the files; no backups' ($left.Count -eq 0 -and $other.Count -eq 0) "found: $($left -join ', ') extra files: $($other.Name -join ', ')"
   Quit; Launch -Hidden
   Check 'Delete all: still empty after a restart' ((Rows).Count -eq 0) ''

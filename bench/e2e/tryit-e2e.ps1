@@ -1,4 +1,4 @@
-# Dictation into EsyType's own window: the "Try it" box on the Dictation page (and, once built, the Scratchpad).
+# Dictation into EsyType's own window: a new Scratchpad note (the Dictation page's "Try it" box until the Mac design).
 # The test build's main window is brought forward and its text box focused; speech is injected; the box's text is
 # read back through UI Automation. Types only into the test build's own window.
 param(
@@ -32,10 +32,11 @@ $trace = Join-Path $Work 'tryit-trace.txt'
 $app = Start-Process $Exe -PassThru -RedirectStandardError $trace; Start-Sleep 9
 try {
   $root = Get-AppWindow $app.Id 'EsyType'; $h = [IntPtr]$root.Current.NativeWindowHandle
-  $box = Find-El $root 'Practice area' $CT::Edit
+  Invoke-El (Find-El $root 'Scratchpad' $CT::Button); Start-Sleep 1; Invoke-El (Find-El $root 'New note' $CT::Button); Start-Sleep 0.8; $box = Find-El $root 'Note' $CT::Edit
   for ($k = 0; $k -lt 6 -and [Tr]::GetForegroundWindow() -ne $h; $k++) { [Tr]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
   if ([Tr]::GetForegroundWindow() -ne $h) { throw 'The test build window is not in front; no keys sent.' }
-  $box.SetFocus(); Start-Sleep 0.5
+  $box = Find-El $root 'Note' $CT::Edit; $box.SetFocus(); Start-Sleep 0.5
+  if (-not $box.Current.HasKeyboardFocus) { throw 'The note does not have the focus; no keys sent.' }
   if ($Toggle) {
     # Ctrl+F7 to start, again to stop
     foreach ($i in 1, 2) { try { [Tr]::Down(0x11); [Tr]::Down(0x76); Start-Sleep -Milliseconds 80 } finally { [Tr]::Up(0x76); [Tr]::Up(0x11) }; Start-Sleep -Milliseconds 900 }
@@ -44,7 +45,7 @@ try {
   }
   Start-Sleep 6
   $got = ([string]$box.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value).Trim()
-  Check 'Try it box receives the dictation' ($got -eq $expected) "'$got'"
+  Check 'Scratchpad note receives the dictation' ($got -eq $expected) "'$got'"
   Check 'Clipboard untouched' (Wait-Clipboard $marker) ''
 } catch {
   "STOPPED: $($_.Exception.Message)"
