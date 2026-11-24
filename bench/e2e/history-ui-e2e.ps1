@@ -64,18 +64,25 @@ function Launch([switch]$Hidden) {
 }
 function Quit { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue; Start-Sleep 2 }
 # Opens (or re-opens, which reloads) the History tab.
-function OpenHistory { Invoke-El (Find-El $root 'Dictation' $CT::Button); Start-Sleep -Milliseconds 400; Invoke-El (Find-El $root 'History' $CT::Button); Start-Sleep 1.2 }
+function OpenHistory { Close-Settings $root -Allow @($(if ($tgt) { $tgt.Id }));  Invoke-El (Find-El $root 'Dictation' $CT::Button); Start-Sleep -Milliseconds 400; Invoke-El (Find-El $root 'History' $CT::Button); Start-Sleep 1.2 }
 function Items { @(Find-All $root $CT::ListItem | Where-Object { $_.Current.Name -match '\d+ words?' }) }
 function ItemFor($text) { Items | Where-Object { $_.Current.Name -like "*$text*" } | Select-Object -First 1 }
 function Btn($item, $name) { Find-El $item $name $CT::Button }
 # History's privacy switches are in Settings, Data and privacy (since Milestone 3): go there when they are not on screen.
-function PrivacyPage { if (-not (Find-El $root 'KEEP HISTORY' $CT::ComboBox -Tries 2)) { Invoke-El (Find-El $root 'Settings' $CT::Button); Start-Sleep 1.2 } }
+function PrivacyPage { if (-not (Find-El $root 'KEEP HISTORY' $CT::ComboBox -Tries 2)) { Open-Settings $root 'History & Privacy'; Start-Sleep 0.4 } }
 function Box($label) { PrivacyPage; Find-El $root "$label*" $CT::CheckBox -Like }
 function Retention($label) {
+  $opt = $null
   PrivacyPage
   $cb = Find-El $root 'KEEP HISTORY' $CT::ComboBox
-  $cb.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 400
-  $opt = Find-El $cb $label $CT::ListItem; if (-not $opt) { $opt = Find-El $root $label $CT::ListItem }
+  $cb.SetFocus(); Start-Sleep -Milliseconds 300   # scrolls it into view inside the Settings panel
+  $ec = $cb.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+  for ($k = 0; $k -lt 3 -and -not $opt; $k++) {   # after a dialog the list can report itself open while closed: close it, open again
+    if ($k) { try { $ec.Collapse() } catch {}; Start-Sleep -Milliseconds 300 }
+    $ec.Expand(); Start-Sleep -Milliseconds 400
+    $opt = Find-El $cb $label $CT::ListItem -Tries 3; if (-not $opt) { $opt = Find-El $root $label $CT::ListItem -Tries 3 }
+  }
+  if (-not $opt) { throw "no '$label' in Keep history" }
   $opt.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Milliseconds 300
   try { $cb.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse() } catch {}
 }

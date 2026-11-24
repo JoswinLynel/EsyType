@@ -375,33 +375,81 @@ function DataTools({ status, refresh }: { status: Status; refresh: () => Promise
   );
 }
 
-const SECTIONS = [
-  ["model", "Speech model"], ["microphone", "Microphone"], ["shortcuts", "Shortcuts"], ["text", "Text"], ["undo", "Undo"],
-  ["appearance", "Appearance"], ["startup", "Startup and performance"], ["storage", "Storage"], ["privacy", "Data and privacy"], ["about", "About"],
+/** The Settings panel's sections (Mac design system, Settings), in sidebar order. */
+export const SECTIONS = [
+  ["general", "General"], ["shortcuts", "Shortcuts"], ["recording", "Recording"], ["speech", "Speech"], ["models", "Models"],
+  ["privacy", "History & Privacy"], ["permissions", "Permissions"], ["about", "About"],
 ] as const;
+export type Section = (typeof SECTIONS)[number][0];
 
-export function SettingsPage({ status, save, refresh, progress, setProgress, openSetup }: {
-  status: Status; save: Save; refresh: () => Promise<unknown>; progress: Progress | null; setProgress: (p: Progress | null) => void; openSetup: () => void;
+/** Settings as a panel over the main window: its own sidebar, one section at a time. Esc or a click outside closes it. */
+export function SettingsPanel({ section, setSection, close, ...rest }: Parameters<typeof SettingsPage>[0] & { setSection: (s: Section) => void; close: () => void }) {
+  const panel = useRef<HTMLDivElement>(null);
+  const before = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    before.current = document.activeElement as HTMLElement | null;
+    panel.current?.querySelector<HTMLElement>(".side-nav button.on")?.focus();
+    // A confirmation dialog on top handles its own Esc.
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector(".dialog") && !e.defaultPrevented) { e.preventDefault(); close(); } };
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("keydown", esc); before.current?.focus?.(); };
+  }, [close]);
+  const label = SECTIONS.find(([id]) => id === section)![1];
+  const row = ([id, name]: (typeof SECTIONS)[number]) => (
+    <button key={id} className={section === id ? "on" : ""} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}>
+      <span className="side-label">{name}</span>
+    </button>
+  );
+  const arrows = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const at = SECTIONS.findIndex(([id]) => id === section);
+    e.preventDefault();
+    const next = SECTIONS[(at + (e.key === "ArrowDown" ? 1 : SECTIONS.length - 1)) % SECTIONS.length][0];
+    setSection(next);
+    setTimeout(() => panel.current?.querySelector<HTMLElement>(".side-nav button.on")?.focus(), 0);
+  };
+  return (
+    <div className="scrim settings-scrim" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div ref={panel} className="settings-panel" role="dialog" aria-modal="true" aria-label="Settings">
+        <aside className="settings-side">
+          <nav className="side-nav" aria-label="Settings sections" onKeyDown={arrows}>
+            <span className="side-eyebrow">Settings</span>
+            {SECTIONS.slice(0, -1).map(row)}
+            <span className="side-rule" />
+            <span className="side-eyebrow">EsyType</span>
+            {row(SECTIONS[SECTIONS.length - 1])}
+          </nav>
+          <p className="settings-foot"><span>EsyType {rest.status.version}</span><span title="Everything runs on this PC"><Icon name="lock" size={14} /> On this PC</span></p>
+        </aside>
+        <div className="settings-content">
+          <h1 className="settings-title">{label}</h1>
+          <SettingsPage section={section} {...rest} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SettingsPage({ section, status, save, refresh, progress, setProgress, openSetup }: {
+  section: Section; status: Status; save: Save; refresh: () => Promise<unknown>; progress: Progress | null; setProgress: (p: Progress | null) => void; openSetup: () => void;
 }) {
   const s = status.settings;
   const hw = status.hardware;
   const [never, setNever] = useState<string | null>(null);
   const [folder, setFolder] = useState(status.models_dir);
   const [moving, setMoving] = useState(false);
-  const jump = (id: string) => document.getElementById("set-" + id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const [mic, setMic] = useState<boolean | null>(null);
+  useEffect(() => { if (section === "permissions") invoke<boolean>("microphone_allowed").then(setMic).catch(() => setMic(null)); }, [section]);
+  const is = (...ids: Section[]) => ids.includes(section);
 
   return (
     <>
-      <nav className="jump" aria-label="Settings sections">
-        {SECTIONS.map(([id, label]) => <button key={id} className="btn sm" onClick={() => jump(id)}>{label}</button>)}
-      </nav>
-
-      <section className="panel" id="set-model">
+      {is("models") && <section className="panel" id="set-model">
         <h2>Speech model</h2>
         <ModelChooser status={status} progress={progress} setProgress={setProgress} save={save} />
-      </section>
+      </section>}
 
-      <section className="panel" id="set-microphone">
+      {is("recording") && <section className="panel" id="set-microphone">
         <h2>Microphone</h2>
         <label className="field" style={{ maxWidth: 420 }}>
           <span>Microphone</span>
@@ -413,9 +461,9 @@ export function SettingsPage({ status, save, refresh, progress, setProgress, ope
         {s.mic && !status.mics.includes(s.mic) && (
           <div style={{ marginTop: 12 }}><Banner tone="amber">"{s.mic}" is not connected. EsyType will use the Windows default microphone until it is.</Banner></div>
         )}
-      </section>
+      </section>}
 
-      <section className="panel" id="set-shortcuts">
+      {is("shortcuts") && <section className="panel" id="set-shortcuts">
         <h2>Shortcuts</h2>
         {!status.shortcuts_ok && <Banner tone="red">A shortcut could not be registered; another app may be using it. Choose a different one.</Banner>}
         <div className="keys">
@@ -425,9 +473,9 @@ export function SettingsPage({ status, save, refresh, progress, setProgress, ope
           <KeyCapture label="Paste last again" value={s.paste_last_shortcut} save={(v) => save({ paste_last_shortcut: v })} optional />
         </div>
         <p className="small">{CTRL_SPACE_NOTE} <kbd>Esc</kbd> always cancels a dictation.</p>
-      </section>
+      </section>}
 
-      <section className="panel" id="set-text">
+      {is("speech") && <section className="panel" id="set-text">
         <h2>Text</h2>
         <p className="small">Clean or Verbatim is chosen on the Dictation page and in the tray menu. These options apply in Clean mode.</p>
         <label className="row" style={{ marginTop: 12 }}>
@@ -439,9 +487,9 @@ export function SettingsPage({ status, save, refresh, progress, setProgress, ope
           <span>Also remove "you know", "I mean", "like", "sort of" and "kind of" when set off by commas</span>
         </label>
         <p className="small">The original is kept in History (unless you turned that off), and the pill offers it for a few seconds after a dictation Clean changed. Rules only: nothing leaves this PC.</p>
-      </section>
+      </section>}
 
-      <section className="panel" id="set-undo">
+      {is("shortcuts") && <section className="panel" id="set-undo">
         <h2>Undo</h2>
         <label className="row">
           <input type="checkbox" checked={s.undo_on_pill} onChange={(e) => save({ undo_on_pill: e.target.checked })} />
@@ -457,27 +505,28 @@ export function SettingsPage({ status, save, refresh, progress, setProgress, ope
             if (await save({ undo_never: (never ?? "").split(",").map((x) => x.trim()).filter(Boolean) })) { setNever(null); toast("List saved."); }
           }}>Save list</button>
         </div>
-      </section>
+      </section>}
 
-      <section className="panel" id="set-appearance">
+      {is("general") && <section className="panel" id="set-appearance">
         <h2>Appearance</h2>
-        <label className="field" style={{ maxWidth: 240 }}>
-          <span>Theme</span>
-          <select value={s.theme} onChange={(e) => save({ theme: e.target.value as Settings["theme"] })}>
-            <option value="system">Follow Windows</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </label>
+        <div className="seg" role="radiogroup" aria-label="Theme">
+          {([["system", "Follow Windows"], ["dark", "Dark"], ["light", "Light"]] as const).map(([v, name]) => (
+            <button key={v} role="radio" aria-checked={s.theme === v} className={s.theme === v ? "on" : ""} onClick={() => save({ theme: v })}>{name}</button>
+          ))}
+        </div>
         <p className="small">Follow Windows switches with your Windows light or dark mode. Frosted glass appears while Windows' Transparency effects are on (Settings, Personalisation, Colours).</p>
-      </section>
+      </section>}
 
-      <section className="panel" id="set-startup">
-        <h2>Startup and performance</h2>
+      {is("general") && <section className="panel" id="set-startup">
+        <h2>Startup</h2>
         <label className="row">
           <input type="checkbox" checked={s.start_with_windows} onChange={(e) => save({ start_with_windows: e.target.checked })} />
           <span>Start EsyType when Windows starts (it waits in the system tray)</span>
         </label>
+      </section>}
+
+      {is("speech") && <section className="panel" id="set-performance">
+        <h2>Performance</h2>
         <label className="field" style={{ marginTop: 12, maxWidth: 240 }}>
           <span>Processor threads</span>
           <select value={s.threads} onChange={(e) => save({ threads: Number(e.target.value) })}>
@@ -486,9 +535,18 @@ export function SettingsPage({ status, save, refresh, progress, setProgress, ope
           </select>
         </label>
         <p className="small">Automatic uses one thread per processor core{hw.physical ? ` (${hw.physical} here)` : ""}, leaving room for other programs: more threads are slightly faster on an idle PC but can be much slower while other programs are busy. Fewer threads: slower transcription, less load.</p>
-      </section>
+      </section>}
 
-      <section className="panel" id="set-storage">
+      {is("permissions") && <section className="panel" id="set-permissions">
+        <h2>Microphone</h2>
+        <div className="row">
+          <span className={"chip " + (mic === false ? "red" : mic ? "green" : "amber")}>{mic === false ? "Blocked in Windows" : mic ? "Allowed" : "Checking…"}</span>
+          {mic === false && <button className="btn sm" onClick={() => invoke("open_mic_privacy").catch(toastError)}>Open Windows settings</button>}
+        </div>
+        <p className="small">EsyType needs the microphone to hear you. Windows asks for nothing else: typing into your apps needs no permission.</p>
+      </section>}
+
+      {is("models") && <section className="panel" id="set-storage">
         <h2>Storage</h2>
         <div className="row">
           <label className="field" style={{ flex: 1 }}>
@@ -504,9 +562,9 @@ export function SettingsPage({ status, save, refresh, progress, setProgress, ope
             }}>{moving ? "Moving…" : "Move models here"}</button>
         </div>
         <p className="small">Now: {status.models_dir}. Downloaded models are moved and checked before the old copies are deleted; future downloads go here. {Math.round(hw.free_disk_mb / 1024)} GB free on this drive.</p>
-      </section>
+      </section>}
 
-      <section className="panel" id="set-privacy">
+      {is("privacy") && <section className="panel" id="set-privacy">
         <h2>Data and privacy</h2>
         <p className="small"><Icon name="lock" size={14} /> Dictation runs on this PC. Your voice is never recorded to disk, and nothing you say or write is sent anywhere.</p>
         <dl className="facts">
@@ -515,15 +573,15 @@ export function SettingsPage({ status, save, refresh, progress, setProgress, ope
         </dl>
         <HistoryPrivacy settings={s} save={save} />
         <DataTools status={status} refresh={refresh} />
-      </section>
+      </section>}
 
-      <section className="panel" id="set-about">
+      {is("about") && <section className="panel" id="set-about">
         <h2>About</h2>
         <p><span className="wordmark">EsyType.</span> <span className="muted">by EsyAI · version {status.version}</span></p>
         <p className="small">Runs on this PC. The only internet use is downloading the speech model you choose, from a fixed address, checked before use. No account.</p>
         <button className="btn" onClick={openSetup}>Run setup again</button>
         <p className="small">Walks through the first-run steps with your current choices. Nothing is deleted or reset.</p>
-      </section>
+      </section>}
     </>
   );
 }

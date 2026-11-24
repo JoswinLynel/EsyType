@@ -4,6 +4,27 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-24: Mac design, milestone A (test build, not released)
+
+**Added**
+
+- The Mac app's layout:
+  - the new sidebar, with EsyMeet ("Soon") and Insights (placeholder)
+  - the last page remembered
+  - Settings as a panel over the window with eight sections; Esc or a click outside closes it; Ctrl+, and the tray's Settings… open it
+  - a Permissions section showing Windows' microphone privacy switch
+- Page heroes with the animated voice wave in EsyType's logo colours (amber, white, blue), folding into a pill beside the title.
+- Window 1120 × 740, minimum 860 × 600; the Mac's colours, type and radii.
+
+**Fixed**
+
+- Light amber text was below AA on a selected model card; it is darker now.
+
+**Tests**
+
+- Theme 64/64, navigation 17/17, polish 25/25, data 27/27, first run 32/32, History UI 33/33, unit 63/63.
+- Record: `docs/testing/2026-11-24-mac-design-a.md`.
+
 ## 0.4.0 (2026-11-24)
 
 ### Milestone 6.1: light and dark themes and frosted glass

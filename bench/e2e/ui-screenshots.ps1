@@ -56,14 +56,17 @@ try {
     }
     "screenshots in $Out ($tag-setup-*.png)"; return
   }
-  foreach ($p in 'Dictation', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad', 'Settings') {
-    Invoke-El (Find-El $root $p $CT::Button); Start-Sleep 1; Snap $p.ToLower()
+  foreach ($p in 'Dictation', 'EsyMeet*', 'Insights', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad') {
+    Invoke-El (Find-El $root $p $CT::Button -Like); Start-Sleep 1.2; Snap ($p.TrimEnd('*').ToLower())
   }
-  # Settings, Data and privacy, and the Delete all dialog (cancelled)
-  Invoke-El (Find-El $root 'Settings' $CT::Button); Start-Sleep 1
-  Invoke-El (Find-El $root 'Data and privacy' $CT::Button); Start-Sleep 1.5; Snap 'settings-privacy'
+  # the Settings panel, every section, and the Delete all dialog (cancelled)
+  foreach ($sec in 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'History & Privacy', 'Permissions', 'About') {
+    Open-Settings $root $sec; Snap ('settings-' + ($sec.ToLower() -replace '[^a-z]+', '-'))
+  }
+  Open-Settings $root 'History & Privacy'
   Invoke-El (Find-El $root 'Delete all EsyType data' $CT::Button); Start-Sleep 1; Snap 'dialog-delete-all'
   [void](Answer-Dialog $root 'Cancel')
+  Close-Settings $root
   # a confirmation dialog: write a note, then Delete
   Invoke-El (Find-El $root 'Scratchpad' $CT::Button); Start-Sleep 1
   Set-Val (Find-El $root 'Note' $CT::Edit) 'Shopping list'; Start-Sleep 1.5

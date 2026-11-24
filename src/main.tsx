@@ -7,23 +7,49 @@ import { DictionaryPage } from "./dictionary";
 import { SnippetsPage } from "./snippets";
 import { StylePage } from "./style";
 import { ScratchpadPage, padOpen } from "./scratchpad";
-import { SettingsPage, SettingsProblem, type Progress, type Settings, type Status } from "./settings";
+import { SECTIONS, SettingsPanel, SettingsProblem, type Progress, type Section, type Settings, type Status } from "./settings";
 import { Setup } from "./setup";
+import { PageTop, type HeroSpec } from "./hero";
 import { Banner, DialogHost, Empty, focusField, Icon, ToastHost, toastError, useDialogOpen, type IconName } from "./ui";
 import "./styles.css";
 
-type Page = "dictation" | "history" | "dictionary" | "snippets" | "style" | "scratchpad" | "settings";
-const PAGES: { id: Page; name: string; icon: IconName; lead: string }[] = [
+type Page = "dictation" | "meet" | "insights" | "history" | "dictionary" | "snippets" | "style" | "scratchpad";
+const PAGES: { id: Page; name: string; icon: IconName; lead: string; words?: true; soon?: true }[] = [
   { id: "dictation", name: "Dictation", icon: "dictation", lead: "" },
-  { id: "history", name: "History", icon: "history", lead: "Your dictations, kept on this PC only, for as long as you choose." },
-  { id: "dictionary", name: "Dictionary", icon: "dictionary", lead: "Names and terms spelled your way, every time they are heard." },
-  { id: "snippets", name: "Snippets", icon: "snippets", lead: "Say a trigger and EsyType inserts the saved text." },
-  { id: "style", name: "Style", icon: "style", lead: "How dictated text is finished in each app." },
-  { id: "scratchpad", name: "Scratchpad", icon: "scratchpad", lead: "Notes that save themselves as you write or dictate." },
-  { id: "settings", name: "Settings", icon: "settings", lead: "Speech model, microphone, shortcuts and how EsyType runs." },
+  { id: "meet", name: "EsyMeet", icon: "meet", lead: "Live transcription of your meetings, on this PC.", soon: true },
+  { id: "insights", name: "Insights", icon: "insights", lead: "Your own numbers, worked out on this PC. They stay even when History is off or trimmed." },
+  { id: "history", name: "History", icon: "history", lead: "Your dictations, kept on this PC only, for as long as you choose.", words: true },
+  { id: "dictionary", name: "Dictionary", icon: "dictionary", lead: "Names and terms spelled your way, every time they are heard.", words: true },
+  { id: "snippets", name: "Snippets", icon: "snippets", lead: "Say a trigger and EsyType inserts the saved text.", words: true },
+  { id: "style", name: "Style", icon: "style", lead: "How dictated text is finished in each app.", words: true },
+  { id: "scratchpad", name: "Scratchpad", icon: "scratchpad", lead: "Notes that save themselves as you write or dictate.", words: true },
 ];
+/** Clicks or focuses something on the page, once the page is showing. */
+const reach = (sel: string) => setTimeout(() => { const el = document.querySelector<HTMLElement>(sel); if (!el) return; if (el.tagName === "BUTTON") el.click(); else { el.focus(); el.scrollIntoView({ block: "center" }); } }, 50);
+const heroBtn = (label: string, run: () => void) => <button className="hero-btn" onClick={run}>{label}</button>;
+/** Hero banners (Mac design system: PageHero), one sentence with one italic word. */
+const HEROES: Partial<Record<Page, HeroSpec>> = {
+  history: { headline: ["Everything you’ve ", "said", ", kept on this PC."], glow: "var(--et-glow-history)",
+    message: "Your dictations, stored only on this PC for as long as you choose. Audio is never saved." },
+  dictionary: { headline: ["EsyType spells the way ", "you", " do."], glow: "var(--et-glow-dictionary)",
+    message: "Add names, company jargon and uncommon words once, and they’re spelled right every time you dictate.",
+    actions: heroBtn("Add new word", () => reach("#dict-term")) },
+  snippets: { headline: ["Say a few words, ", "type", " the rest."], glow: "var(--et-mark-blue)",
+    message: "Your signature, address, meeting link or standard reply, typed in full when you say its trigger.",
+    actions: heroBtn("New snippet", () => reach('input[aria-label="Trigger"]')) },
+  style: { headline: ["Write like ", "you", ", in every app."], glow: "var(--et-mark-amber)",
+    message: "EsyType finishes your words in the style you set for each app: written-out forms for email, chat-style for messages. It never changes your tone or rewrites sentences." },
+  scratchpad: { headline: ["Think out ", "loud", "."], glow: "var(--et-glow-scratchpad)",
+    message: "Notes that save themselves as you write or dictate. Click in a note, hold your shortcut and speak: the text goes in at the cursor.",
+    actions: heroBtn("New note", () => reach(".pad-list > .btn.primary")) },
+};
 
-function Sidebar({ page, setPage, status, engine }: { page: Page; setPage: (p: Page) => void; status: Status; engine: string }) {
+const isPage = (p: string | null): p is Page => PAGES.some((x) => x.id === p);
+/** Remembered between launches (a convenience: a missing or unreadable value just opens Dictation). */
+const remembered = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
+const remember = (key: string, v: string) => { try { localStorage.setItem(key, v); } catch { /* not kept */ } };
+
+function Sidebar({ page, setPage, status, engine, openSettings }: { page: Page; setPage: (p: Page) => void; status: Status; engine: string; openSettings: (s?: Section) => void }) {
   const nav = useRef<HTMLElement>(null);
   // Up and Down move between the items, as in a list.
   const arrows = (e: React.KeyboardEvent) => {
@@ -36,7 +62,7 @@ function Sidebar({ page, setPage, status, engine }: { page: Page; setPage: (p: P
   };
   const item = (p: (typeof PAGES)[number]) => (
     <button key={p.id} className={page === p.id ? "on" : ""} aria-current={page === p.id ? "page" : undefined} onClick={() => setPage(p.id)}>
-      <Icon name={p.icon} /><span className="side-label">{p.name}</span>
+      <Icon name={p.icon} size={16} /><span className="side-label">{p.name}</span>{p.soon && <span className="soon side-label" aria-label=", coming soon">Soon</span>}
     </button>
   );
   const ready = status.loaded !== null;
@@ -45,16 +71,27 @@ function Sidebar({ page, setPage, status, engine }: { page: Page; setPage: (p: P
     <aside className="side">
       <span className="wordmark side-label">EsyType.</span>
       <nav ref={nav} className="side-nav" aria-label="Sections" onKeyDown={arrows}>
-        {PAGES.filter((p) => p.id !== "settings").map(item)}
+        {PAGES.filter((p) => !p.words).map(item)}
+        <span className="side-eyebrow side-label">Your words</span>
+        {PAGES.filter((p) => p.words).map(item)}
         <span className="side-gap" />
-        {item(PAGES[PAGES.length - 1])}
+        <button onClick={() => openSettings()}><Icon name="settings" size={16} /><span className="side-label">Settings</span></button>
       </nav>
-      <button className="side-status" onClick={() => setPage("settings")} title="Speech engine">
+      <button className="side-status" onClick={() => openSettings("models")} title="Speech engine">
         <span className={"chip " + (ready ? "green" : engine === "error" ? "red" : "amber")}>
           <span className="side-label">{ready ? `Local · ${model} · ${status.threads_effective} threads` : engine === "error" ? "Model failed to load" : "Loading model…"}</span>
         </span>
       </button>
     </aside>
+  );
+}
+
+/** EsyMeet is not built yet (plan Phases 8-10). */
+function Meet() {
+  return (
+    <section className="panel">
+      <Empty icon="meet" title="EsyMeet is coming" text="Live transcription of your meetings, worked out on this PC like your dictation. It isn’t built yet." />
+    </section>
   );
 }
 
@@ -64,13 +101,15 @@ const OUTCOME_NOTE: Record<string, string> = {
   Failed: " · not confirmed: the app didn't take the text. It is in History.",
 };
 
-function Home({ status, save, engine, openSettings }: { status: Status; save: (p: Partial<Settings>) => Promise<boolean>; engine: string; openSettings: () => void }) {
+function Home({ status, save, engine, openSettings, openStyle }: { status: Status; save: (p: Partial<Settings>) => Promise<boolean>; engine: string; openSettings: () => void; openStyle: () => void }) {
   const s = status.settings;
   const clean = s.text_mode !== "verbatim";
   return (
     <>
-      <h1 className="display">Hold <kbd>{s.ptt}</kbd>, speak, release.</h1>
-      <p className="lead">Or press <kbd>{s.toggle}</kbd> to start and again to stop. <kbd>Esc</kbd> cancels. Text goes where your cursor was. English only for now.</p>
+      <h1 className="welcome">Welcome back</h1>
+      <PageTop id="dictation" foldable={false} hero={{ headline: ["Your voice, typed ", "anywhere", "."], glow: "var(--et-mark-amber)",
+        message: <>Hold <kbd>{s.ptt}</kbd> in any app and speak. Or press <kbd>{s.toggle}</kbd> to start and stop. <kbd>Esc</kbd> cancels. It all stays on this PC.</>,
+        actions: heroBtn("Set your style", openStyle) }} />
       {!status.shortcuts_ok && <Banner tone="red" action={<button className="btn sm" onClick={openSettings}>Change shortcuts</button>}>A shortcut could not be registered; another app may be using it.</Banner>}
       {engine === "error" && <Banner tone="red" action={<button className="btn sm" onClick={openSettings}>Speech model settings</button>}>The speech model could not be loaded, so dictation is not available.</Banner>}
 
@@ -142,7 +181,15 @@ function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [engine, setEngine] = useState("");
-  const [page, setPage] = useState<Page>("dictation");
+  const [page, setPageNow] = useState<Page>(() => { const p = remembered("et-page"); return isPage(p) ? p : "dictation"; });
+  const setPage = useCallback((p: Page) => { setPageNow(p); remember("et-page", p); }, []);
+  const [settingsAt, setSettingsAt] = useState<Section | null>(null);
+  const openSettings = useCallback((at?: Section) => {
+    const last = remembered("et-settings");
+    setSettingsAt(at ?? (SECTIONS.some(([id]) => id === last) ? last as Section : "general"));
+  }, []);
+  const closeSettings = useCallback(() => setSettingsAt(null), []);
+  const setSection = (s: Section) => { setSettingsAt(s); remember("et-settings", s); };
   const [setupOpen, setSetupOpen] = useState(false);
   const dialogOpen = useDialogOpen();
   const main = useRef<HTMLElement>(null);
@@ -164,11 +211,17 @@ function App() {
       listen<{ engine: string }>("status", (e) => { setEngine(e.payload.engine); refresh(); }),
       listen("transcript", () => refresh()),
       listen("settings", () => refresh()),
-      listen<string>("open-tab", (e) => setPage(e.payload as Page)),
+      listen<string>("open-tab", (e) => { if (e.payload === "settings") openSettings(); else if (isPage(e.payload)) setPage(e.payload); }),
       listen("flush", () => { if (!padOpen) invoke("flushed"); }),
     ];
     return () => subs.forEach((p) => p.then((f) => f()));
-  }, [refresh]);
+  }, [refresh, openSettings, setPage]);
+  // Ctrl+, opens Settings, as in other Windows apps.
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.ctrlKey && e.key === "," && !e.altKey && !e.shiftKey) { e.preventDefault(); openSettings(); } };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [openSettings]);
   useEffect(() => { main.current?.scrollTo(0, 0); }, [page]);
   // Frosted glass follows Windows' Transparency effects switch; checked again whenever the window comes back to the front.
   useEffect(() => {
@@ -211,29 +264,36 @@ function App() {
   const db = { available: status.history_available, dbError: status.history_error };
   return (
     <>
-      <div className="app" inert={dialogOpen}>
-        <Sidebar page={page} setPage={setPage} status={status} engine={engine} />
+      <div className="app" inert={dialogOpen || settingsAt !== null}>
+        <Sidebar page={page} setPage={setPage} status={status} engine={engine} openSettings={openSettings} />
         <main className="main" ref={main}>
           <div className="page">
             {problem}
-            {page !== "dictation" && (
+            {page !== "dictation" && (HEROES[page] ? <PageTop id={page} title={info.name} hero={HEROES[page]!} /> : (
               <header className="page-head">
                 <h1 className="display">{info.name}</h1>
                 <p className="lead">{info.lead}</p>
               </header>
-            )}
-            {page === "dictation" ? <Home status={status} save={save} engine={engine} openSettings={() => setPage("settings")} />
-              : page === "history" ? <HistoryPage settings={status.settings} {...db} openPrivacy={() => { setPage("settings"); setTimeout(() => document.getElementById("set-privacy")?.scrollIntoView({ block: "start" }), 100); }}
+            ))}
+            {page === "dictation" ? <Home status={status} save={save} engine={engine} openSettings={() => openSettings()} openStyle={() => setPage("style")} />
+              : page === "meet" ? <Meet />
+              : page === "insights" ? <section className="panel"><Empty icon="insights" title="Your numbers are on their way" text="Words dictated, speed, time saved and your activity arrive in the next step." /></section>
+              : page === "history" ? <HistoryPage settings={status.settings} {...db} openPrivacy={() => openSettings("privacy")}
                 tryIt={() => { setPage("dictation"); focusField("practice"); }} />
               : page === "dictionary" ? <DictionaryPage {...db} hint={status.settings.dictionary_hint} hintWords={status.dictionary_hint_words} setHint={async (on) => { await save({ dictionary_hint: on }); }}
                 builtin={status.settings.builtin_vocabulary} setBuiltin={async (on) => { await save({ builtin_vocabulary: on }); }} />
               : page === "snippets" ? <SnippetsPage {...db} />
               : page === "style" ? <StylePage settings={status.settings} save={async (p) => { await save(p); }} cleanOn={status.settings.text_mode !== "verbatim"} />
-              : page === "scratchpad" ? <ScratchpadPage {...db} />
-              : <SettingsPage status={status} save={save} refresh={refresh} progress={progress} setProgress={setProgress} openSetup={() => setSetupOpen(true)} />}
+              : <ScratchpadPage {...db} />}
           </div>
         </main>
       </div>
+      {settingsAt && (
+        <div inert={dialogOpen}>
+          <SettingsPanel section={settingsAt} setSection={setSection} close={closeSettings} status={status} save={save} refresh={refresh}
+            progress={progress} setProgress={setProgress} openSetup={() => { setSettingsAt(null); setSetupOpen(true); }} />
+        </div>
+      )}
       {hosts}
     </>
   );

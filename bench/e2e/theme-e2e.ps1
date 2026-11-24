@@ -55,11 +55,19 @@ function JsOn($sock, [string]$expr) {
 function Js([string]$expr) { JsOn $ws $expr }
 function Dark { Js "matchMedia('(prefers-color-scheme: dark)').matches" }
 function Bg { Js "getComputedStyle(document.body).backgroundColor" }
-function Go([string]$page) { Js "(()=>{const b=[...document.querySelectorAll('.side-nav button')].find(b=>b.textContent.trim()==='$page');b.click();return !!b})()" | Out-Null; Start-Sleep 0.9 }
+# Settings is a panel over the window (since the Mac design): Esc closes it before going to another page.
+function CloseSettings { Js "(()=>{if(!document.querySelector('.settings-panel'))return false;window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true})()" | Out-Null; Start-Sleep 0.4 }
+function Go([string]$page) {
+  CloseSettings
+  Js "(()=>{const b=[...document.querySelectorAll('.side nav button')].find(b=>b.querySelector('.side-label')?.textContent.trim()==='$page');b.click();return !!b})()" | Out-Null; Start-Sleep 0.9
+}
+function Section([string]$name) { Js "(()=>{const b=[...document.querySelectorAll('.settings-side button')].find(b=>b.textContent.trim()==='$name');b.click();return !!b})()" | Out-Null; Start-Sleep 0.6 }
+$themeNames = @{ system = 'Follow Windows'; dark = 'Dark'; light = 'Light' }
 function SetTheme([string]$v) {
-  Go 'Settings'
-  Js "(()=>{const s=[...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='light'));s.value='$v';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()" | Out-Null
+  Go 'Settings'; Section 'General'
+  Js "(()=>{const b=[...document.querySelectorAll('.seg button')].find(b=>b.textContent.trim()==='$($themeNames[$v])');b.click();return !!b})()" | Out-Null
   Start-Sleep 1.5
+  CloseSettings
 }
 function Saved { (Get-Content $settingsFile -Raw | ConvertFrom-Json).theme }
 
@@ -77,7 +85,8 @@ $audit = @'
     let bg = page; for (let i = layers.length - 1; i >= 0; i--) bg = over(layers[i], bg); return bg; };
   const out = []; let checked = 0, darkLeft = [];
   const lightTheme = !matchMedia('(prefers-color-scheme: dark)').matches;
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const root = document.querySelector('.dialog') || document.querySelector('.settings-panel') || document.body;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const seen = new Set();
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const el = n.parentElement; if (!el || seen.has(el) || !n.textContent.trim()) continue; seen.add(el);
@@ -91,7 +100,7 @@ $audit = @'
     if (k < rq) out.push({ text: n.textContent.trim().slice(0, 40), ratio: Math.round(k * 100) / 100, need: rq });
   }
   if (lightTheme) for (const el of document.querySelectorAll('body *')) {
-    if (el.closest('.btn.primary, .badge, .steps, .progress, .meter, .btn.danger-fill, .sr-only')) continue;
+    if (el.closest('.btn.primary, .btn.dark, .badge, .steps, .progress, .meter, .btn.danger-fill, .sr-only, .hero, .hero-pill')) continue;
     const r = el.getBoundingClientRect(); if (!r.width || !r.height) continue;
     const c = num(getComputedStyle(el).backgroundColor); if (c && c[3] > 0.5 && lum(c) < 0.05) darkLeft.push(el.className || el.tagName);
   }
@@ -99,13 +108,15 @@ $audit = @'
   return JSON.stringify({ checked, fails: out.slice(0, 8), failCount: out.length, darkLeft: [...new Set(darkLeft)].slice(0, 8) });
 })()
 '@
-$pages = 'Dictation', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad', 'Settings'
+$pages = 'Dictation', 'EsyMeet', 'Insights', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad'
+$sections = 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'History & Privacy', 'Permissions', 'About'
 function AuditAll([string]$label) {
-  foreach ($p in $pages) {
-    Go $p
+  $views = @($pages | ForEach-Object { @{ name = "$_ page"; go = [scriptblock]::Create("Go '$_'") } }) + @($sections | ForEach-Object { @{ name = "Settings, $_"; go = [scriptblock]::Create("if (-not (Js `"!!document.querySelector('.settings-panel')`")) { Go 'Settings' }; Section '$_'") } })
+  foreach ($v in $views) {
+    & $v.go; $p = $v.name
     $a = Js $audit | ConvertFrom-Json
-    Check "$label, $p page: all text passes AA contrast" ($a.failCount -eq 0 -and $a.checked -gt 5) ("{0} texts checked{1}" -f $a.checked, $(if ($a.failCount) { "; $($a.failCount) below: " + (($a.fails | ForEach-Object { "'$($_.text)' $($_.ratio)/$($_.need)" }) -join '; ') } else { '' }))
-    if ($label -eq 'Light') { Check "Light, $p page: no dark colour left over" (@($a.darkLeft).Count -eq 0) (($a.darkLeft) -join ', ') }
+    Check "$label, ${p}: all text passes AA contrast" ($a.failCount -eq 0 -and $a.checked -gt $(if ($p -match "EsyMeet|Insights") { 2 } else { 5 })) ("{0} texts checked{1}" -f $a.checked, $(if ($a.failCount) { "; $($a.failCount) below: " + (($a.fails | ForEach-Object { "'$($_.text)' $($_.ratio)/$($_.need)" }) -join '; ') } else { '' }))
+    if ($label -eq 'Light') { Check "Light, ${p}: no dark colour left over" (@($a.darkLeft).Count -eq 0) (($a.darkLeft) -join ', ') }
   }
   # the confirmation dialog (Delete all history, cancelled), over a frosted backdrop
   Go 'History'
@@ -126,16 +137,31 @@ try {
   Check 'Starting does not rewrite the settings file' ((Get-Content $settingsFile -Raw) -eq $before -and -not (Saved)) ''
 
   SetTheme 'light'
-  Check 'Light: page light, title bar light, saved' (-not (Dark) -and (Bg) -eq 'rgb(243, 242, 247)' -and [Th]::DarkTitle($h) -eq 0 -and (Saved) -eq 'light') ("background $(Bg); dark title bar $([Th]::DarkTitle($h)); saved '$(Saved)'")
+  Check 'Light: page light, title bar light, saved' (-not (Dark) -and (Bg) -eq 'rgb(255, 255, 255)' -and [Th]::DarkTitle($h) -eq 0 -and (Saved) -eq 'light') ("background $(Bg); dark title bar $([Th]::DarkTitle($h)); saved '$(Saved)'")
   $pillText = JsOn $pillWs "(()=>{const d=document.createElement('span');d.style.color='var(--et-text-2)';document.body.appendChild(d);const c=getComputedStyle(d).color;d.remove();return c+' / '+getComputedStyle(document.body).colorScheme})()"
   Check 'Light: the pill stays dark (light text, dark scheme)' ($pillText -eq 'rgba(255, 255, 255, 0.8) / dark') $pillText
   AuditAll 'Light'
 
+  # The hero's voice wave: drawn on its canvas; still while the window is not in front (the test window is in the background)
+  Go 'Dictation'
+  $paint = "(()=>{const c=document.querySelector('.hero canvas');if(!c)return 'none';const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0,h=0;for(let i=0;i<d.length;i+=4){if(d[i+3]){n++;h=(h*31+d[i]+d[i+1]*7+d[i+2]*13)%1000003}}return c.width+'x'+c.height+' '+n+' '+h})()"
+  $w1 = Js $paint; Start-Sleep 0.5; $w2 = Js $paint
+  Check 'Hero wave drawn on its canvas, in the logo colours' ($w1 -match '^\d+x\d+ (\d+)' -and [int]$Matches[1] -gt 500 -and (Js "(()=>{const d=document.createElement('i');d.style.color='var(--et-mark-mid)';document.body.appendChild(d);const c=getComputedStyle(d).color;d.remove();return c})()") -eq 'rgb(255, 255, 255)') $w1
+  Check 'Hero wave still while the window is not in front' ((Js 'document.hasFocus()') -or $w1 -eq $w2) "focus $(Js 'document.hasFocus()'); $w1 / $w2"
+  # Fold the Dictionary hero into the pill beside the title; remembered after a restart
+  Go 'Dictionary'
+  Js "document.querySelector('.hero .switch').click()" | Out-Null; Start-Sleep 0.5
+  $folded = Js "!document.querySelector('.hero') && !!document.querySelector('.title-row .hero-pill canvas')"
+
   Stop-App; Launch
+  Go 'Dictionary'
+  Check 'Hero folds into a pill beside the title, remembered after a restart' ($folded -and (Js "!document.querySelector('.hero') && !!document.querySelector('.hero-pill')")) "folded $folded"
+  Js "document.querySelector('.hero-pill .switch').click()" | Out-Null; Start-Sleep 0.5
+  Check 'Hero unfolds again' (Js "!!document.querySelector('.hero') && !document.querySelector('.hero-pill')") ''
   Check 'Light kept after a restart (page and title bar)' (-not (Dark) -and [Th]::DarkTitle($h) -eq 0) ("background $(Bg)")
 
   SetTheme 'dark'
-  Check 'Dark: page dark, title bar dark, saved' ((Dark) -and (Bg) -eq 'rgb(10, 10, 10)' -and [Th]::DarkTitle($h) -eq 1 -and (Saved) -eq 'dark') ("background $(Bg); dark title bar $([Th]::DarkTitle($h)); saved '$(Saved)'")
+  Check 'Dark: page dark, title bar dark, saved' ((Dark) -and (Bg) -eq 'rgb(11, 11, 12)' -and [Th]::DarkTitle($h) -eq 1 -and (Saved) -eq 'dark') ("background $(Bg); dark title bar $([Th]::DarkTitle($h)); saved '$(Saved)'")
   AuditAll 'Dark'
 
   SetTheme 'system'

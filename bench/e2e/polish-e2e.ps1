@@ -58,7 +58,7 @@ function Front {
   for ($k = 0; $k -lt 6 -and [Po]::GetForegroundWindow() -ne $h; $k++) { [Po]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
   if ([Po]::GetForegroundWindow() -ne $h) { throw 'The test build window is not in front; no keys sent.' }
 }
-function Go($page) { Invoke-El (Find-El $root $page $CT::Button); Start-Sleep 0.9 }
+function Go($page) { Close-Settings $root; Invoke-El (Find-El $root $page $CT::Button); Start-Sleep 0.9 }
 function Texts { Find-All $root $CT::Text | ForEach-Object { $_.Current.Name } }
 function Has([string]$like) { [bool]((Texts) | Where-Object { $_ -like $like }) }
 # The page's focused element: its accessible name (or text), then @ and its row in a list (-1 outside one).
@@ -92,7 +92,9 @@ try {
   # ---------- 1. Empty profile ----------
   Launch
   $small = @()
-  foreach ($p in 'Dictation', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad', 'Settings') { Go $p; $small += Small $p }
+  foreach ($p in 'Dictation', 'Insights', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad') { Go $p; $small += Small $p }
+  foreach ($sec in 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'History & Privacy', 'Permissions', 'About') { Open-Settings $root $sec; $small += Small "Settings, $sec" }
+  Close-Settings $root
   Check 'Every visible button at least 32 px high, on every page' ($small.Count -eq 0) ($small -join '; ')
 
   Go 'History'
@@ -155,7 +157,8 @@ try {
   $typed = Js "($(Named 'Search dictionary')).value"
   [Po]::Tap(0x1B); Start-Sleep 0.5
   $v = Js "($(Named 'Search dictionary')).value"
-  Check 'Esc in the search box clears it' ($typed -eq 'zzz' -and $v -eq '' -and (Rows).Count -eq 3) "typed '$typed', after Esc '$v'; keys seen: $(Js 'JSON.stringify(window.__keys)')"
+  for ($k = 0; $k -lt 10 -and (Rows).Count -ne 3; $k++) { Start-Sleep -Milliseconds 200 }   # the full list is drawn again
+  Check 'Esc in the search box clears it' ($typed -eq 'zzz' -and $v -eq '' -and (Rows).Count -eq 3) "typed '$typed', after Esc '$v', rows $((Rows).Count); keys seen: $(Js 'JSON.stringify(window.__keys)')"
   Set-Val $box 'zzz'; Start-Sleep 0.6
   $ok = (Has 'Nothing matches "zzz".') -and (Rows).Count -eq 0
   Invoke-El (@(Find-All $root $CT::Button | Where-Object { $_.Current.Name -eq 'Clear search' })[-1]); Start-Sleep 0.6

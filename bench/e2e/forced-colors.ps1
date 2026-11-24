@@ -56,9 +56,10 @@ try {
   $node = (Send $main 'Accessibility.getPartialAXTree' @{ objectId = $obj; fetchRelatives = $false }).nodes[0]
   $live = ($node.properties | Where-Object { $_.name -eq 'live' }).value.value
   "live region: role $($node.role.value), live $live -> $(if ($live -eq 'polite') { 'PASS' } else { 'FAIL' })"
-  $saved = foreach ($p in 'Dictation', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad', 'Settings') {
+  $saved = foreach ($p in 'Dictation', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad') {
     Invoke-El (Find-El $root $p $CT::Button); Start-Sleep 1; Shot $main "fc-$($p.ToLower())"
   }
+  Open-Settings $root 'General'; $saved += Shot $main 'fc-settings'; Close-Settings $root
   Invoke-El (Find-El $root 'Dictionary' $CT::Button); Start-Sleep 0.8
   Invoke-El (Find-El $root 'Delete all' $CT::Button); Start-Sleep 0.8
   $saved += Shot $main 'fc-dialog'

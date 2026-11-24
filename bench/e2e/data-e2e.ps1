@@ -39,7 +39,7 @@ function Counts { $c = & python -I $py counts $db | ConvertFrom-Json; "$($c.tran
 function Texts { (Find-All $root $CT::Text | ForEach-Object { $_.Current.Name }) -join ' ' }
 function Has([string]$pattern, [int]$Seconds = 5) { for ($i = 0; $i -lt $Seconds * 4; $i++) { if ((Texts) -match $pattern) { return $true }; Start-Sleep -Milliseconds 250 }; $false }
 function Click([string]$name) { Invoke-El (Find-El $root $name $CT::Button -Like); Start-Sleep -Milliseconds 800 }   # -Like: names may end in an ellipsis
-function Page([string]$name) { Invoke-El (Find-El $root $name $CT::Button); Start-Sleep 1.2 }
+function Page([string]$name) { if ($name -eq 'Settings') { Open-Settings $root 'History & Privacy'; Start-Sleep 0.4; return }; Close-Settings $root; Invoke-El (Find-El $root $name $CT::Button); Start-Sleep 1.2 }
 function Newest([string]$filter) { Get-ChildItem $exports -Filter $filter | Sort-Object LastWriteTime | Select-Object -Last 1 }
 # The dialog's text (title, body and list), then presses $button.
 function Dialog([string]$button) {
@@ -112,7 +112,7 @@ try {
   $st = Settings
   Check 'Delete all: lists what goes and what stays' ($msg -match 'cannot be undone' -and $msg -match 'Kept: backups and exports') ''
   Check 'Delete all: everything gone, settings to defaults' ((Counts) -eq '0/0/0/0' -and $st.text_mode -eq 'clean' -and $st.mic -eq $null) "$(Counts) $($st.text_mode)"
-  Check 'Delete all: models kept, no wizard, backup untouched' ((Test-Path (Join-Path $Work 'restart-models\ggml-base.en-q5_1.bin')) -and [bool](Find-El $root 'Dictation' $CT::Button) -and (Test-Path $bk.FullName)) ''
+  Check 'Delete all: models kept, no wizard, backup untouched' ((Test-Path (Join-Path $Work 'restart-models\ggml-base.en-q5_1.bin')) -and ([bool](Find-El $root 'General' $CT::Button -Tries 3) -or [bool](Find-El $root 'Dictation' $CT::Button)) -and -not ((Texts) -match 'Step \d of 8') -and (Test-Path $bk.FullName)) ''
   # ---- restore ----
   Page 'Settings'
   Click 'Restore from a backup*'; Pick $bk.FullName

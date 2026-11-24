@@ -181,6 +181,28 @@ fn apply_theme(app: &AppHandle, theme: &str) {
 
 /// Windows' "Transparency effects" switch (Settings > Personalisation > Colours), which also goes off in battery saver.
 /// The window uses frosted glass only while it is on.
+/// Whether Windows' microphone privacy switches let desktop apps use the microphone (Settings, Privacy, Microphone).
+/// A missing value means Windows has not been asked to block it.
+#[tauri::command]
+fn microphone_allowed() -> bool {
+    use windows::core::{HSTRING, PCWSTR};
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ};
+    let read = |key: &str| -> Option<String> {
+        let mut buf = [0u16; 32];
+        let mut n = std::mem::size_of_val(&buf) as u32;
+        let k = HSTRING::from(key);
+        let r = unsafe { RegGetValueW(HKEY_CURRENT_USER, PCWSTR(k.as_ptr()), windows::core::w!("Value"), RRF_RT_REG_SZ, None, Some(buf.as_mut_ptr() as *mut _), Some(&mut n)) };
+        r.is_ok().then(|| String::from_utf16_lossy(&buf[..(n as usize / 2).saturating_sub(1)]))
+    };
+    let base = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
+    [read(base), read(&format!(r"{base}\NonPackaged"))].iter().all(|v| v.as_deref() != Some("Deny"))
+}
+
+#[tauri::command]
+fn open_mic_privacy() -> Result<(), String> {
+    std::process::Command::new("explorer.exe").arg("ms-settings:privacy-microphone").spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn transparency_effects() -> bool {
     // Test builds only: lets the theme test see the solid fallback without touching the Windows setting.
@@ -1099,6 +1121,7 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
     let open = MenuItem::with_id(app, "open", "Open EsyType", true, None::<&str>)?;
     let pad = MenuItem::with_id(app, "scratchpad", "Open Scratchpad", true, None::<&str>)?;
+    let prefs = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let on = app.state::<Shared>().settings.lock().unwrap().clean().is_some();
     let clean = CheckMenuItem::with_id(app, "clean", "Clean mode", true, on, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit EsyType", true, None::<&str>)?;
@@ -1106,13 +1129,17 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("app icon"))
         .tooltip(TRAY_TIP)
-        .menu(&Menu::with_items(app, &[&open, &pad, &clean, &quit])?)
+        .menu(&Menu::with_items(app, &[&open, &pad, &prefs, &clean, &quit])?)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, e| match e.id().as_ref() {
             "open" => show_main(app),
             "scratchpad" => {
                 show_main(app);
                 let _ = app.emit_to("main", "open-tab", "scratchpad");
+            }
+            "settings" => {
+                show_main(app);
+                let _ = app.emit_to("main", "open-tab", "settings");
             }
             "clean" => {
                 let s = app.state::<Shared>();
@@ -1806,7 +1833,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects,
+        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy,
             dict_list, dict_add, dict_update, dict_delete, dict_clear, dict_import, dict_export, snip_list, snip_add, snip_update, snip_delete, snip_clear, snip_import, snip_export, snip_preview, style_preview, recent_apps, notes_list, note_get, note_create, note_save, note_delete, notes_clear, note_export, flushed, show_in_folder, dismiss_settings_problem, open_folder, check_shortcut, pause_shortcuts, mic_test, hide_window, history_export, settings_export, settings_import_preview, settings_import_apply, backup_now, backup_check, backup_forget, restore_backup, undo_restore, delete_all_data, copy_text, pill_cancel, pill_copy, pill_original, pill_undo, pill_use_original, pill_stop])
         .run(context)
         .expect("EsyType failed to start");

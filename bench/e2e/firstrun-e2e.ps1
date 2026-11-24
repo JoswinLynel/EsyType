@@ -136,7 +136,7 @@ try {
   Check 'Restart: the normal window, no wizard' ([bool](Find-El $root 'Dictation' $CT::Button -Tries 15) -and -not ((Texts) -match 'Step \d of 8')) ''
   # Run setup again keeps data
   $before = Rows; $settingsBefore = Get-Content (Join-Path $data 'settings.json') -Raw
-  Click 'Settings'; Click 'Run setup again'
+  Open-Settings $root 'About'; Click 'Run setup again'
   Check 'Run setup again opens the wizard' (Has 'Speak\. It types\.') ''
   foreach ($i in 1..7) { Click $(if ($i -eq 1) { 'Get started' } elseif ($i -eq 3) { 'Use Base' } else { 'Continue' }) }
   Click 'Finish'; Start-Sleep 1
