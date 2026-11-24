@@ -34,7 +34,7 @@ Every page exists with its core features: Dictation, History (search, retention,
 - Today's "Try it", "Last dictation" and Clean/Verbatim cards move: Try it is on the Style page; Clean/Verbatim becomes the Clean card on Style.
 - Pill: Acrylic glass capsule (shape A), states Listening, Hands-free (Stop and insert button), Warning "No speech heard", Transcribing (sweep), Typed + Undo, Undone, Copied, Error; **hidden from screen sharing** (switch in Settings ▸ General, on by default).
 
-### 3.3 Insights (milestone C)
+### 3.3 Insights (milestone C): done in test build, 24 Nov (`docs/testing/2026-11-24-mac-design-c.md`)
 - Four tiles counting up: words dictated, words per minute, time saved (with "How?"), meetings transcribed ("—", comes with EsyMeet).
 - Words per day: 7 / 30 / 90 days, average line.
 - Activity heatmap, 18 weeks; streak, busiest day, words a day when active.

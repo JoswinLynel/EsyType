@@ -11,7 +11,7 @@ export type Model = {
 };
 export type Settings = { model: string; mic: string | null; threads: number; ptt: string; toggle: string; models_dir: string | null; start_with_windows: boolean;
   text_mode: "clean" | "verbatim"; clean_fillers_extended: boolean; clean_small_numbers_as_words: boolean; dictionary_hint: boolean; builtin_vocabulary: boolean;
-  undo_shortcut: string; paste_last_shortcut: string; undo_on_pill: boolean; undo_never: string[]; setup_done: boolean | null; theme: "system" | "dark" | "light"; user_name: string } & HistorySettings & StyleSettings;
+  undo_shortcut: string; paste_last_shortcut: string; undo_on_pill: boolean; undo_never: string[]; setup_done: boolean | null; theme: "system" | "dark" | "light"; user_name: string; typing_wpm: number } & HistorySettings & StyleSettings;
 export type Status = {
   settings: Settings;
   models: { model: Model; installed: boolean; fit: "ok" | "ram" | "disk" }[];
@@ -53,7 +53,7 @@ const LABELS: Record<string, string> = {
   history_retention_days: "Keep history", history_record_app: "Note the program", history_keep_raw: "Keep the original transcription",
   text_mode: "Clean or Verbatim", clean_fillers_extended: "Extra fillers", clean_small_numbers_as_words: "Zero to nine as words",
   dictionary_hint: "Dictionary hint", builtin_vocabulary: "Correct common product names", style_default: "Style for other apps", style_rules: "Style rules for apps", style_custom: "Custom style",
-  undo_shortcut: "Undo shortcut", paste_last_shortcut: "Paste last shortcut", undo_on_pill: "Undo on the pill", undo_never: "Programs without Undo", theme: "Theme", user_name: "Your name",
+  undo_shortcut: "Undo shortcut", paste_last_shortcut: "Paste last shortcut", undo_on_pill: "Undo on the pill", undo_never: "Programs without Undo", theme: "Theme", user_name: "Your name", typing_wpm: "Typing speed",
 };
 
 export function SettingsProblem({ p, onDismiss }: { p: NonNullable<Status["settings_problem"]>; onDismiss: () => void }) {

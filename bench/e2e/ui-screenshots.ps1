@@ -36,6 +36,8 @@ if ($Setup) {
 $env:LOCALAPPDATA = $lad; $env:ESYTYPE_TEST_ZOOM = "$Zoom"
 $tag = "z$($Zoom)-w$Width" + $(if ($Seeded) { '-seeded' } else { '' }) + $(if ($Theme -ne 'system') { "-$Theme" } else { '' })
 $app = Start-Process $Exe -PassThru -RedirectStandardError (Join-Path $Work 'shots-trace.txt'); Start-Sleep 9
+# sample usage totals for Insights, once EsyType has brought the database up to date
+if ($Seeded -and -not $Setup) { python -I (Join-Path $PSScriptRoot 'data-seed.py') insights (Join-Path $data 'esytype.db') | Out-Null }
 try {
   $root = Get-AppWindow $app.Id 'EsyType'; $h = [IntPtr]$root.Current.NativeWindowHandle
   $scale = [Shot]::GetDpiForWindow($h) / 96.0   # -Width and -Height are in the window's own (logical) pixels

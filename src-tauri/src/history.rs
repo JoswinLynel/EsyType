@@ -70,7 +70,48 @@ const MIGRATIONS: &[&str] = &[
     );
     INSERT INTO usage_days (day, dictations, words, audio_ms)
         SELECT date(created_at / 1000, 'unixepoch', 'localtime'), count(*), sum(word_count), sum(audio_ms) FROM transcripts GROUP BY 1;",
+    // v8: processing time per day (for Time saved) and words per kind of app per day (Insights), from the program's
+    // name only; both started from the History already on this PC. The kinds must match app_kind() (tested).
+    "ALTER TABLE usage_days ADD COLUMN processing_ms INTEGER NOT NULL DEFAULT 0;
+    UPDATE usage_days SET processing_ms = coalesce((SELECT sum(processing_ms) FROM transcripts t
+        WHERE date(t.created_at / 1000, 'unixepoch', 'localtime') = usage_days.day), 0);
+    CREATE TABLE usage_apps (
+        day   TEXT NOT NULL,                   -- local date, YYYY-MM-DD
+        kind  TEXT NOT NULL,                   -- Email, Chat, Documents, Code, Notes, Browser or Other
+        words INTEGER NOT NULL,
+        PRIMARY KEY (day, kind)
+    );
+    INSERT INTO usage_apps (day, kind, words)
+        SELECT date(created_at / 1000, 'unixepoch', 'localtime'), CASE
+            WHEN lower(app) IN ('outlook.exe', 'olk.exe', 'hxoutlook.exe', 'thunderbird.exe', 'mailspring.exe') THEN 'Email'
+            WHEN lower(app) IN ('slack.exe', 'teams.exe', 'ms-teams.exe', 'whatsapp.exe', 'discord.exe', 'telegram.exe', 'signal.exe', 'zoom.exe', 'skype.exe') THEN 'Chat'
+            WHEN lower(app) IN ('winword.exe', 'wordpad.exe', 'soffice.bin', 'swriter.exe', 'powerpnt.exe', 'excel.exe', 'acrobat.exe', 'acrord32.exe') THEN 'Documents'
+            WHEN lower(app) IN ('code.exe', 'cursor.exe', 'devenv.exe', 'idea64.exe', 'pycharm64.exe', 'rider64.exe', 'sublime_text.exe', 'windowsterminal.exe', 'wt.exe') THEN 'Code'
+            WHEN lower(app) IN ('onenote.exe', 'obsidian.exe', 'notion.exe', 'evernote.exe', 'notepad.exe', 'notepad++.exe', 'microsoft.notes.exe') THEN 'Notes'
+            WHEN lower(app) LIKE 'esytype%' THEN 'Notes'
+            WHEN lower(app) IN ('chrome.exe', 'msedge.exe', 'firefox.exe', 'brave.exe', 'opera.exe', 'vivaldi.exe', 'arc.exe') THEN 'Browser'
+            ELSE 'Other' END, sum(word_count)
+        FROM transcripts GROUP BY 1, 2;",
 ];
+
+/// Kinds of app for Insights, by the program's file name only (never window titles or what was written). A browser is
+/// one kind for every website. EsyType itself (the Scratchpad) counts as Notes.
+const APP_KINDS: &[(&str, &[&str])] = &[
+    ("Email", &["outlook.exe", "olk.exe", "hxoutlook.exe", "thunderbird.exe", "mailspring.exe"]),
+    ("Chat", &["slack.exe", "teams.exe", "ms-teams.exe", "whatsapp.exe", "discord.exe", "telegram.exe", "signal.exe", "zoom.exe", "skype.exe"]),
+    ("Documents", &["winword.exe", "wordpad.exe", "soffice.bin", "swriter.exe", "powerpnt.exe", "excel.exe", "acrobat.exe", "acrord32.exe"]),
+    ("Code", &["code.exe", "cursor.exe", "devenv.exe", "idea64.exe", "pycharm64.exe", "rider64.exe", "sublime_text.exe", "windowsterminal.exe", "wt.exe"]),
+    ("Notes", &["onenote.exe", "obsidian.exe", "notion.exe", "evernote.exe", "notepad.exe", "notepad++.exe", "microsoft.notes.exe"]),
+    ("Browser", &["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "vivaldi.exe", "arc.exe"]),
+];
+
+pub fn app_kind(exe: Option<&str>) -> &'static str {
+    let Some(e) = exe.map(|e| e.to_lowercase()) else { return "Other" };
+    if e.starts_with("esytype") {
+        return "Notes";
+    }
+    APP_KINDS.iter().find(|(_, list)| list.contains(&e.as_str())).map(|(k, _)| *k).unwrap_or("Other")
+}
 
 /// The schema version this EsyType writes.
 pub fn latest_schema() -> i64 {
@@ -86,6 +127,7 @@ pub fn migration(i: usize) -> &'static str {
 pub struct Usage {
     pub words: i64,
     pub audio_ms: i64,
+    pub processing_ms: i64,
     pub dictations: i64,
     /// First day with a dictation, YYYY-MM-DD.
     pub since: Option<String>,
@@ -206,22 +248,47 @@ impl History {
 
     /// Counts a finished dictation in today's usage totals (numbers only), whether or not History is on.
     // shortcut: a dictation later undone still counts; subtract it in mark_undone if Insights needs exact figures.
-    pub fn add_usage(&self, words: i64, audio_ms: i64) -> Result<(), String> {
+    pub fn add_usage(&self, words: i64, audio_ms: i64, processing_ms: i64, kind: &str) -> Result<(), String> {
         self.conn
-            .execute(
-                "INSERT INTO usage_days (day, dictations, words, audio_ms) VALUES (date('now', 'localtime'), 1, ?1, ?2)
-                 ON CONFLICT(day) DO UPDATE SET dictations = dictations + 1, words = words + ?1, audio_ms = audio_ms + ?2",
-                params![words, audio_ms],
-            )
-            .map(|_| ())
-            .map_err(err)
+            .execute_batch("BEGIN")
+            .and_then(|_| self.conn.execute(
+                "INSERT INTO usage_days (day, dictations, words, audio_ms, processing_ms) VALUES (date('now', 'localtime'), 1, ?1, ?2, ?3)
+                 ON CONFLICT(day) DO UPDATE SET dictations = dictations + 1, words = words + ?1, audio_ms = audio_ms + ?2, processing_ms = processing_ms + ?3",
+                params![words, audio_ms, processing_ms],
+            ))
+            .and_then(|_| self.conn.execute(
+                "INSERT INTO usage_apps (day, kind, words) VALUES (date('now', 'localtime'), ?1, ?2)
+                 ON CONFLICT(day, kind) DO UPDATE SET words = words + ?2",
+                params![kind, words],
+            ))
+            .and_then(|_| self.conn.execute_batch("COMMIT"))
+            .map_err(|e| { let _ = self.conn.execute_batch("ROLLBACK"); err(e) })
+    }
+
+    /// For Insights: every day with dictation in the last 140 days, oldest first; words per kind of app this week
+    /// (from Monday); today's and this week's first local dates.
+    pub fn insights(&self) -> Result<serde_json::Value, String> {
+        let mut st = self.conn.prepare("SELECT day, dictations, words, audio_ms, processing_ms FROM usage_days WHERE day >= date('now', 'localtime', '-140 days') ORDER BY day").map_err(err)?;
+        let days: Vec<serde_json::Value> = st
+            .query_map([], |r| Ok(serde_json::json!({ "day": r.get::<_, String>(0)?, "dictations": r.get::<_, i64>(1)?, "words": r.get::<_, i64>(2)?, "audio_ms": r.get::<_, i64>(3)?, "processing_ms": r.get::<_, i64>(4)? })))
+            .map_err(err)?
+            .collect::<Result<_, _>>()
+            .map_err(err)?;
+        let (today, week): (String, String) = self.conn.query_row("SELECT date('now', 'localtime'), date('now', 'localtime', '-6 days', 'weekday 1')", [], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?;
+        let mut st = self.conn.prepare("SELECT kind, sum(words) FROM usage_apps WHERE day >= ?1 GROUP BY kind HAVING sum(words) > 0 ORDER BY 2 DESC").map_err(err)?;
+        let apps: Vec<serde_json::Value> = st
+            .query_map(params![week], |r| Ok(serde_json::json!({ "kind": r.get::<_, String>(0)?, "words": r.get::<_, i64>(1)? })))
+            .map_err(err)?
+            .collect::<Result<_, _>>()
+            .map_err(err)?;
+        Ok(serde_json::json!({ "days": days, "apps_week": apps, "today": today, "week_start": week }))
     }
 
     /// All-time totals, the current day streak and how many Dictionary words and snippets there are.
     pub fn usage(&self) -> Result<Usage, String> {
-        let (words, audio_ms, dictations, since): (i64, i64, i64, Option<String>) = self
+        let (words, audio_ms, dictations, since, processing_ms): (i64, i64, i64, Option<String>, i64) = self
             .conn
-            .query_row("SELECT coalesce(sum(words), 0), coalesce(sum(audio_ms), 0), coalesce(sum(dictations), 0), min(day) FROM usage_days", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .query_row("SELECT coalesce(sum(words), 0), coalesce(sum(audio_ms), 0), coalesce(sum(dictations), 0), min(day), coalesce(sum(processing_ms), 0) FROM usage_days", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))
             .map_err(err)?;
         let today: i64 = self.conn.query_row("SELECT CAST(julianday(date('now', 'localtime')) AS INTEGER)", [], |r| r.get(0)).map_err(err)?;
         let mut st = self.conn.prepare("SELECT CAST(julianday(day) AS INTEGER) FROM usage_days WHERE dictations > 0 ORDER BY day DESC").map_err(err)?;
@@ -230,7 +297,7 @@ impl History {
             .conn
             .query_row("SELECT (SELECT count(*) FROM dictionary), (SELECT count(*) FROM snippets)", [], |r| Ok((r.get(0)?, r.get(1)?)))
             .map_err(err)?;
-        Ok(Usage { words, audio_ms, dictations, since, streak: streak(&days, today), dictionary, snippets })
+        Ok(Usage { words, audio_ms, processing_ms, dictations, since, streak: streak(&days, today), dictionary, snippets })
     }
 
     /// Newest first. `query` matches the inserted or edited text, case-insensitively.
@@ -336,7 +403,7 @@ impl History {
     /// database file, its log or upgrade backups.
     pub fn clear_everything(&self) -> Result<(), String> {
         self.conn
-            .execute_batch("DELETE FROM transcripts; DELETE FROM dictionary; DELETE FROM snippets; DELETE FROM scratchpad_notes; DELETE FROM usage_days; VACUUM;")
+            .execute_batch("DELETE FROM transcripts; DELETE FROM dictionary; DELETE FROM snippets; DELETE FROM scratchpad_notes; DELETE FROM usage_days; DELETE FROM usage_apps; VACUUM;")
             .map_err(err)?;
         self.conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())).map_err(err)?;
         remove_backups(&self.path);
@@ -448,12 +515,44 @@ mod tests {
         let h = History::open(&p).unwrap();
         let u = h.usage().unwrap();
         assert_eq!((u.words, u.audio_ms, u.dictations, u.streak), (3, 3000, 1, 1));
-        h.add_usage(5, 2000).unwrap();
+        h.add_usage(5, 2000, 400, "Chat").unwrap();
         h.clear_all().unwrap(); // clearing History keeps the totals
         let u = h.usage().unwrap();
         assert_eq!((u.words, u.audio_ms, u.dictations, u.streak), (8, 5000, 2, 1));
         h.clear_everything().unwrap(); // Delete all EsyType data removes them
         assert_eq!(h.usage().unwrap().dictations, 0);
+    }
+
+    #[test]
+    fn app_kinds_backfill_matches_app_kind() {
+        let p = temp_db("kinds");
+        let mut exes: Vec<&str> = APP_KINDS.iter().flat_map(|(_, l)| l.iter().copied()).collect();
+        exes.extend(["ESYTYPE.EXE", "esytype-e2e.exe", "unknown.exe", "WINWORD.EXE"]);
+        {
+            let c = Connection::open(&p).unwrap();
+            for sql in &MIGRATIONS[..6] { c.execute_batch(sql).unwrap(); }
+            for (i, e) in exes.iter().enumerate() {
+                c.execute("INSERT INTO transcripts (created_at, final_text, mode, model, audio_ms, processing_ms, outcome, app, word_count) VALUES (?1, 'x', 'clean', 'base', 1000, 100, 'pasted', ?2, ?3)", params![now_ms(), e, 1i64 << i]).unwrap();
+            }
+            c.execute("INSERT INTO transcripts (created_at, final_text, mode, model, audio_ms, processing_ms, outcome, app, word_count) VALUES (?1, 'x', 'clean', 'base', 1000, 100, 'pasted', NULL, 1)", params![now_ms()]).unwrap();
+            c.execute_batch(MIGRATIONS[6]).unwrap(); // v7 on a History made before it, as on a real upgrade
+            c.pragma_update(None, "user_version", 7).unwrap();
+        }
+        let h = History::open(&p).unwrap();
+        let mut want: std::collections::BTreeMap<&str, i64> = Default::default();
+        for (i, e) in exes.iter().enumerate() { *want.entry(app_kind(Some(e))).or_default() += 1i64 << i; }
+        *want.entry(app_kind(None)).or_default() += 1;
+        let mut st = h.conn.prepare("SELECT kind, sum(words) FROM usage_apps GROUP BY kind").unwrap();
+        let got: std::collections::BTreeMap<String, i64> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|x| x.unwrap()).collect();
+        assert_eq!(got, want.iter().map(|(k, v)| (k.to_string(), *v)).collect(), "the SQL kinds and app_kind() agree");
+        assert_eq!(app_kind(Some("esytype-e2e.exe")), "Notes");
+        assert_eq!(app_kind(Some("Slack.exe")), "Chat");
+        let u = h.usage().unwrap();
+        assert_eq!(u.processing_ms, 100 * (exes.len() as i64 + 1), "processing time filled from History");
+        h.add_usage(3, 1000, 200, "Email").unwrap();
+        let i = h.insights().unwrap();
+        assert!(i["apps_week"].as_array().unwrap().iter().any(|a| a["kind"] == "Email" && a["words"] == want["Email"] + 3), "this week: History's Email words and the new 3");
+        assert_eq!(i["days"].as_array().unwrap().len(), 1);
     }
 
     #[test]

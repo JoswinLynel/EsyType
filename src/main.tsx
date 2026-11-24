@@ -11,6 +11,7 @@ import { SECTIONS, SettingsPanel, SettingsProblem, type Progress, type Section, 
 import { Setup } from "./setup";
 import { PageTop, type HeroSpec } from "./hero";
 import { Home, TextMode } from "./home";
+import { InsightsPage } from "./insights";
 import { loadMemory, remember, remembered, Banner, DialogHost, Empty, focusField, Icon, ToastHost, toastError, useDialogOpen, type IconName } from "./ui";
 import "./styles.css";
 
@@ -223,7 +224,7 @@ function App() {
             ))}
             {page === "dictation" ? <Home status={status} engine={engine} openSettings={(at) => openSettings(at)} go={setPage} />
               : page === "meet" ? <Meet />
-              : page === "insights" ? <section className="panel"><Empty icon="insights" title="Your numbers are on their way" text="Words dictated, speed, time saved and your activity arrive in the next step." /></section>
+              : page === "insights" ? <InsightsPage settings={status.settings} save={save} />
               : page === "history" ? <HistoryPage settings={status.settings} {...db} openPrivacy={() => openSettings("privacy")}
                 tryIt={() => { setPage("scratchpad"); focusField("note-text"); }} />
               : page === "dictionary" ? <DictionaryPage {...db} hint={status.settings.dictionary_hint} hintWords={status.dictionary_hint_words} setHint={async (on) => { await save({ dictionary_hint: on }); }}

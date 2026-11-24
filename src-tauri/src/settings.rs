@@ -54,6 +54,8 @@ pub struct Settings {
     pub theme: String,
     /// Optional; its first word greets you on the Dictation page. Kept only in this file.
     pub user_name: String,
+    /// Your typing speed in words a minute (10-150), for Insights' Time saved.
+    pub typing_wpm: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -138,6 +140,7 @@ impl Default for Settings {
             setup_done: None,
             theme: "system".into(),
             user_name: String::new(),
+            typing_wpm: 40,
         }
     }
 }

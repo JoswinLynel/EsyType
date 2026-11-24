@@ -4,6 +4,24 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-24: Mac design, milestone C, Insights (test build, not released)
+
+**Added**
+
+- The Insights page:
+  - words dictated, words per minute, time saved (with "How?") and a meetings tile for EsyMeet
+  - words per day for 7, 30 or 90 days, with the average
+  - an 18-week activity grid with hover details, streak, busiest day and words a day when active
+  - this week, split by kind of app
+  - your typing speed (new setting, 40 wpm by default)
+- Database change v8: processing time and words per kind of app per day. Numbers only, kinds from the program's name only, filled once from your History.
+
+**Tests**
+
+- Insights 15/15, unit 65/65.
+- Full regression passed; dictation time unchanged.
+- Record: `docs/testing/2026-11-24-mac-design-c.md`.
+
 ### 2026-11-24: Mac design, milestone B (test build, not released)
 
 **Added**

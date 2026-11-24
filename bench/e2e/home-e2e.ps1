@@ -79,7 +79,7 @@ try {
   $words = @($typed.Trim() -split '\s+').Count
   Check 'History off: the dictation still adds to the totals' ($typed -match 'Congratulations' -and $after[0] -eq $before[0] + $words -and $after[1] -eq $before[1] + 1) "before $($before -join '/'), after $($after -join '/'), $words words"
   Check 'History off: no dictation text saved' ((Q "SELECT count(*) FROM transcripts")[0][0] -eq 3) ''
-  Check 'Usage table holds numbers only' (((Q "SELECT group_concat(name) FROM pragma_table_info('usage_days')")[0][0]) -eq 'day,dictations,words,audio_ms') ''
+  Check 'Usage table holds numbers only' (((Q "SELECT group_concat(name) FROM pragma_table_info('usage_days')")[0][0]) -eq 'day,dictations,words,audio_ms,processing_ms') ''
 } catch {
   "STOPPED: $($_.Exception.Message) at line $($_.InvocationInfo.ScriptLineNumber)"
 } finally {

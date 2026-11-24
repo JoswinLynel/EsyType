@@ -141,7 +141,8 @@ Not cancelled, not in progress. Rule-based Clean mode is the text processing; no
 - [x] Release 6.1 (0.4.0, installed 24 Nov)
 - [x] Mac design milestone A: sidebar, EsyMeet and Insights placeholders, Settings panel, heroes and the wave (24 Nov, test build, `docs/testing/2026-11-24-mac-design-a.md`; plan `docs/plans/mac-parity-gap-analysis.md`)
 - [x] Mac design milestone B: Dictation page and usage totals; the pill left unchanged at your request (24 Nov, test build, `docs/testing/2026-11-24-mac-design-b.md`)
-- [ ] Mac design milestones C-F: Insights, list pages, Settings rows, onboarding; Mica behind the window
+- [x] Mac design milestone C: Insights (24 Nov, test build, `docs/testing/2026-11-24-mac-design-c.md`)
+- [ ] Mac design milestones D-F: list pages, Settings rows, onboarding; Mica behind the window
 - [ ] Update notification (check GitHub every 2-3 days, notify with Download): only when you ask
 - [ ] 6.3 Dictation screen and the glass recording pill (shape A or B chosen from screenshots)
 - [ ] 7.1 Profile and onboarding (name, theme step)
