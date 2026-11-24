@@ -138,7 +138,7 @@ Not cancelled, not in progress. Rule-based Clean mode is the text processing; no
 ## Next generation, Phases 6-11 (owner brief 22 Nov 2026; plan `docs/plans/next-generation-audit-and-plan.md`, approved)
 
 - [x] 6.1 Theme system and glass materials: Dark, Light, Follow Windows; frosted dialogs; AA contrast in both themes (23 Nov, test build, `docs/testing/2026-11-23-themes.md`)
-- [ ] Release 6.1 (needs your approval)
+- [x] Release 6.1 (0.4.0, installed 24 Nov)
 - [ ] 6.2 Shell: new sidebar, EsyMeet and Insights placeholders, Mica behind the window
 - [ ] 6.3 Dictation screen and the glass recording pill (shape A or B chosen from screenshots)
 - [ ] 7.1 Profile and onboarding (name, theme step)

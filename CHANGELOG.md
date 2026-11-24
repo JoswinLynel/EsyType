@@ -4,7 +4,9 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
-### 2026-11-23: Milestone 6.1, light and dark themes and frosted glass (test build, not yet released)
+## 0.4.0 (2026-11-24)
+
+### Milestone 6.1: light and dark themes and frosted glass
 
 **Added**
 
