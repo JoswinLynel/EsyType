@@ -41,7 +41,7 @@ Every page exists with its core features: Dictation, History (search, retention,
 - This week: day bars and the split by kind of app (from the program's name only, never window titles).
 - Typing speed stepper (10–150 wpm) used for Time saved.
 
-### 3.4 History, Dictionary, Snippets, Style, Scratchpad (milestone D)
+### 3.4 History, Dictionary, Snippets, Style, Scratchpad (milestone D): built and committed locally, 24 Nov (`docs/testing/2026-11-24-mac-design-d.md`); four key-pressing suites still to run on an idle PC
 - **History:** hero with counts and "not inserted" chip; filter chips (All, Today, This week, Not inserted, six most-used apps); day cards; details line (app, words, seconds spoken, language); Not inserted badge with tooltip; hover Copy, Edit, Delete (also as keyboard actions); Edit sheet; search matches highlighted; empty state with a small wave.
 - **Dictionary:** hero with latest words; Word | Correction segmented form; entries gain **language, category, description and an on/off switch** (migration); conflict warning; Edit sheet; **import preview** before anything changes; "Show the list (29 names)".
 - **Snippets:** hero chips; {date} {time} {day} buttons; 4,000-character counter; mode radios; entries gain **category and on/off** (migration); clash warning; Edit sheet.

@@ -185,11 +185,26 @@ try {
   [void](Dictate); Start-Sleep 1
   Check 'History on again: saving resumes' ((Saved).history_enabled -and (Rows).Count -eq $n + 1) ''
 
+  # --- 11b. The Mac design's counts and filters (24 Nov) ----------------------------------------------------------
+  Seed 'Filtered entry about melons.' 0 'slack.exe'; Seed 'Ten days of grapes.' 10 'slack.exe'
+  OpenHistory
+  $rows = Rows; $today = (Get-Date).Date
+  $hero = Find-El $root "$($rows.Count) dictations" -Tries 25   # a chip's text may be exposed as any kind of element
+  Check 'Hero shows how many dictations' ([bool]$hero) "$($rows.Count) in the database"
+  Invoke-El (Find-El $root 'Today' $CT::Button); Start-Sleep 1.2
+  $todayRows = @($rows | Where-Object { [DateTimeOffset]::FromUnixTimeMilliseconds([int64]$_.created_at).LocalDateTime -ge $today }).Count
+  Check 'Today shows only today''s dictations' ((Items).Count -eq $todayRows -and -not (ItemFor 'grapes')) "$((Items).Count) shown, $todayRows today"
+  Invoke-El (Find-El $root 'slack' $CT::Button); Start-Sleep 1.2
+  Check 'An app chip shows only that program''s dictations' ((Items).Count -eq 2 -and (ItemFor 'melons') -and (ItemFor 'grapes')) "$((Items).Count) shown"
+  Invoke-El (Find-El $root 'All' $CT::Button); Start-Sleep 1.2
+  Check 'All shows everything again, grouped by day' ((Items).Count -eq [math]::Min(50, $rows.Count) -and [bool](Find-El $root 'Today' $CT::Text -Tries 3)) "$((Items).Count) shown"
+
   # --- 12. Delete all ------------------------------------------------------------------------------------------
   OpenHistory
+  $before = (Rows).Count
   Invoke-El (Find-El $root 'Delete all history' $CT::Button); $msg = Answer-Dialog $root 'Cancel'; Start-Sleep 0.8
-  Check 'Delete all asks first; Cancel deletes nothing' ((Rows).Count -eq $n + 1 -and $msg -match 'cannot be undone') "'$msg'"
-  Invoke-El (Find-El $root 'Delete all history' $CT::Button); [void](Answer-Dialog $root 'Delete all'); Start-Sleep 1.5
+  Check 'Delete all asks first; Cancel deletes nothing' ((Rows).Count -eq $before -and $msg -match 'can.t be undone') "'$msg'"
+  Invoke-El (Find-El $root 'Delete all history' $CT::Button); [void](Answer-Dialog $root "Delete all $((Rows).Count)"); Start-Sleep 1.5   # the button names the count
   $left = @('apples', 'conjurer', 'entrance') | Where-Object { InFiles $_ }
   $other = @(Get-ChildItem $data -File | Where-Object { $_.Name -notmatch '^(settings\.json|ui-state\.json|esytype\.db(-wal|-shm)?)$' })
   Check 'Delete all: no records left' ((Rows).Count -eq 0 -and (Items).Count -eq 0 -and (Find-El $root 'Nothing here yet' $CT::Text) -and (Find-El $root 'Open Scratchpad' $CT::Button)) ''

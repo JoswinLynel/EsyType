@@ -84,7 +84,7 @@ $app = Start-Process $Exe -PassThru -RedirectStandardError (Join-Path $Work 'sty
 $root = Get-AppWindow $app.Id 'EsyType'   # the test build's window, not an installed EsyType's
 try {
   Invoke-El (Btn 'Style'); Start-Sleep 1
-  Check 'Starter rules and Standard default' (((Settings).style_default -eq $null -or (Settings).style_default -eq 'standard') -and (Find-El $root 'OUTLOOK.EXE' $CT::Text) -and (Find-El $root 'slack.exe' $CT::Text)) ''
+  Check 'Starter rules and Standard default' (((Settings).style_default -eq $null -or (Settings).style_default -eq 'standard') -and (Find-El $root 'OUTLOOK.EXE') -and (Find-El $root 'slack.exe'))   # a row's only text is its name ''
 
   # Formal through a rule for the test window's program
   Set-Val (Field 'Program') 'powershell.exe'; Choose 'Style for new program' 'Formal'
@@ -109,7 +109,7 @@ try {
   Check 'Standard default: nothing beyond Clean' ($r.Inserted -match "don't" -and $r.Inserted -match 'in order to') "'$($r.Inserted)'"
 
   # Custom as the default
-  Invoke-El (Find-El $root 'Expand contractions*' $CT::CheckBox -Like); Start-Sleep 0.8
+  Invoke-El (Find-El $root 'Expand contractions*' $CT::Button -Like)   # the switch, not its label; Start-Sleep 0.8
   Choose 'Style for other apps' 'Custom'
   $r = Dictate $sentence
   Check 'Custom: chosen switch applied' ($r.Inserted -match 'do not' -and $r.Inserted -match '^Yeah' -and (Settings).style_custom.expand_contractions) "'$($r.Inserted)'"

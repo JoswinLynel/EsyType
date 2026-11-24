@@ -477,16 +477,7 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
 
       {is("speech") && <section className="panel" id="set-text">
         <h2>Text</h2>
-        <p className="small">Clean or Verbatim is chosen on the Dictation page and in the tray menu. These options apply in Clean mode.</p>
-        <label className="row" style={{ marginTop: 12 }}>
-          <input type="checkbox" checked={s.clean_small_numbers_as_words} onChange={(e) => save({ clean_small_numbers_as_words: e.target.checked })} />
-          <span>Write zero to nine as words ("three apples"); larger numbers, money, times and measurements always as digits</span>
-        </label>
-        <label className="row" style={{ marginTop: 12 }}>
-          <input type="checkbox" checked={s.clean_fillers_extended} onChange={(e) => save({ clean_fillers_extended: e.target.checked })} />
-          <span>Also remove "you know", "I mean", "like", "sort of" and "kind of" when set off by commas</span>
-        </label>
-        <p className="small">The original is kept in History (unless you turned that off), and the pill offers it for a few seconds after a dictation Clean changed. Rules only: nothing leaves this PC.</p>
+        <p className="small">Clean or Verbatim, Clean’s options and per-app style are on the Style page.</p>
       </section>}
 
       {is("shortcuts") && <section className="panel" id="set-undo">

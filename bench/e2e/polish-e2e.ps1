@@ -64,7 +64,7 @@ function Has([string]$like) { [bool]((Texts) | Where-Object { $_ -like $like }) 
 # The page's focused element: its accessible name (or text), then @ and its row in a list (-1 outside one).
 function Active { Js "(()=>{const a=document.activeElement;const li=a.closest('ul.entries > li');return (a.getAttribute('aria-label')||a.textContent.trim().slice(0,40))+'@'+(li?[...li.parentElement.children].indexOf(li):-1)})()" }
 # JavaScript for elements: a row's button by its text; an element by its accessible name; the empty state's button.
-function RowBtn([int]$i, [string]$name) { "[...[...document.querySelectorAll('ul.entries > li')][$i].querySelectorAll('button')].find(b=>b.textContent==='$name')" }
+function RowBtn([int]$i, [string]$name) { "[...[...document.querySelectorAll('ul.entries > li')][$i].querySelectorAll('button')].find(b=>b.textContent==='$name'||b.getAttribute('aria-label')==='$name')" }   # icon buttons are named by aria-label
 function Named([string]$label) { "[...document.querySelectorAll('[aria-label]')].find(e=>e.getAttribute('aria-label')==='$label')" }
 $emptyBtn = "document.querySelector('.empty button')"
 # Keyboard onto an element (window in front first), then keys.
@@ -77,7 +77,7 @@ function FocusOn([string]$el) {
     $on = { (Js "document.hasFocus() && document.activeElement === ($el)") -and [Po]::GetForegroundWindow() -eq $h }
     if ((& $on) -and (Start-Sleep 0.3) -eq $null -and (& $on)) { return }   # twice: a late focus change would move it
   }
-  throw "could not put the keyboard on $el"
+  throw "could not put the keyboard on $el (focus: $(Js "(()=>{const a=document.activeElement;return (a.getAttribute('aria-label')||a.tagName+' '+a.textContent.trim().slice(0,30)+' '+a.className)+' in '+(a.closest('[role=dialog]')?.getAttribute('aria-label')||'page')})()"); page focus $(Js 'document.hasFocus()'); found $(Js "!!($el)"))"
 }
 function Press([string]$el) { FocusOn $el; [Po]::Tap(0x0D); Start-Sleep 0.8 }
 function Q([string]$sql) { $r = python -I $seed query $db $sql; $v = $r | ConvertFrom-Json; , $v }
@@ -98,7 +98,7 @@ try {
   Check 'Every visible button at least 32 px high, on every page' ($small.Count -eq 0) ($small -join '; ')
 
   Go 'History'
-  $ok = (Has 'Nothing here yet') -and (Has 'Your dictations appear here as you speak.*')
+  $ok = (Has 'Nothing here yet') -and (Has 'Your dictations appear here as you speak*')
   Press $emptyBtn
   Check 'History empty: Open Scratchpad puts the cursor in the note' ($ok -and (Active) -eq 'Note@-1') "focus: $(Active)"
   Go 'Dictionary'
@@ -134,7 +134,7 @@ try {
   Check 'Seeded list: the empty state never shows while loading' (-not $flash -and $n -eq 3) "flash $flash, rows $n"
 
   # Headings with counts
-  $heads = @{ History = 'History (3)'; Dictionary = 'Dictionary (3)'; Snippets = 'Snippets (3)'; Style = 'Apps (2)'; Scratchpad = 'Notes (2)' }
+  $heads = @{ History = '3 dictations*'; Dictionary = 'Your dictionary (3)'; Snippets = 'Your snippets (3)'; Style = 'Apps (2)'; Scratchpad = 'Notes (2)' }
   $missing = foreach ($p in $heads.Keys) { Go $p; if (-not (Has $heads[$p])) { $heads[$p] } }
   Check 'Every list heading shows its count' (@($missing).Count -eq 0) "missing: $($missing -join ', ')"
 

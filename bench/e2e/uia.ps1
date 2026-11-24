@@ -26,9 +26,9 @@ function Invoke-El($e) {
 function Set-Val($e, [string]$v) { $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($v) }
 function Toggled($e) { $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq 'On' }
 # Answers a JavaScript confirm() raised by the window: 'OK' or 'Cancel'. Returns the dialog text.
-function Answer-Dialog($root, [string]$button) {
+function Answer-Dialog($root, [string]$button, [switch]$Like) {
   for ($i = 0; $i -lt 40; $i++) {
-    $b = Find-El $root $button $CT::Button
+    $b = Find-El $root $button $CT::Button -Like:$Like
     if ($b) { $text = (Find-All $root $CT::Text | ForEach-Object { $_.Current.Name }) -join ' | '; Invoke-El $b; return $text }
     Start-Sleep -Milliseconds 100
   }

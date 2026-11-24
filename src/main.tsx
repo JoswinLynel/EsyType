@@ -9,8 +9,7 @@ import { StylePage } from "./style";
 import { ScratchpadPage, padOpen } from "./scratchpad";
 import { SECTIONS, SettingsPanel, SettingsProblem, type Progress, type Section, type Settings, type Status } from "./settings";
 import { Setup } from "./setup";
-import { PageTop, type HeroSpec } from "./hero";
-import { Home, TextMode } from "./home";
+import { CleanCard, Home, TextMode } from "./home";
 import { InsightsPage } from "./insights";
 import { loadMemory, remember, remembered, Banner, DialogHost, Empty, focusField, Icon, ToastHost, toastError, useDialogOpen, type IconName } from "./ui";
 import "./styles.css";
@@ -26,26 +25,6 @@ const PAGES: { id: Page; name: string; icon: IconName; lead: string; words?: tru
   { id: "style", name: "Style", icon: "style", lead: "How dictated text is finished in each app.", words: true },
   { id: "scratchpad", name: "Scratchpad", icon: "scratchpad", lead: "Notes that save themselves as you write or dictate.", words: true },
 ];
-/** Clicks or focuses something on the page, once the page is showing. */
-const reach = (sel: string) => setTimeout(() => { const el = document.querySelector<HTMLElement>(sel); if (!el) return; if (el.tagName === "BUTTON") el.click(); else { el.focus(); el.scrollIntoView({ block: "center" }); } }, 50);
-const heroBtn = (label: string, run: () => void) => <button className="hero-btn" onClick={run}>{label}</button>;
-/** Hero banners (Mac design system: PageHero), one sentence with one italic word. */
-const HEROES: Partial<Record<Page, HeroSpec>> = {
-  history: { headline: ["Everything you’ve ", "said", ", kept on this PC."], glow: "var(--et-glow-history)",
-    message: "Your dictations, stored only on this PC for as long as you choose. Audio is never saved." },
-  dictionary: { headline: ["EsyType spells the way ", "you", " do."], glow: "var(--et-glow-dictionary)",
-    message: "Add names, company jargon and uncommon words once, and they’re spelled right every time you dictate.",
-    actions: heroBtn("Add new word", () => reach("#dict-term")) },
-  snippets: { headline: ["Say a few words, ", "type", " the rest."], glow: "var(--et-mark-blue)",
-    message: "Your signature, address, meeting link or standard reply, typed in full when you say its trigger.",
-    actions: heroBtn("New snippet", () => reach('input[aria-label="Trigger"]')) },
-  style: { headline: ["Write like ", "you", ", in every app."], glow: "var(--et-mark-amber)",
-    message: "EsyType finishes your words in the style you set for each app: written-out forms for email, chat-style for messages. It never changes your tone or rewrites sentences." },
-  scratchpad: { headline: ["Think out ", "loud", "."], glow: "var(--et-glow-scratchpad)",
-    message: "Notes that save themselves as you write or dictate. Click in a note, hold your shortcut and speak: the text goes in at the cursor.",
-    actions: heroBtn("New note", () => reach(".pad-list > .btn.primary")) },
-};
-
 const isPage = (p: string | null): p is Page => PAGES.some((x) => x.id === p);
 
 function Sidebar({ page, setPage, status, engine, openSettings }: { page: Page; setPage: (p: Page) => void; status: Status; engine: string; openSettings: (s?: Section) => void }) {
@@ -216,12 +195,12 @@ function App() {
         <main className="main" ref={main}>
           <div className="page">
             {problem}
-            {page !== "dictation" && (HEROES[page] ? <PageTop id={page} title={info.name} hero={HEROES[page]!} /> : (
+            {(page === "meet" || page === "insights") && (   // the other pages draw their own title and banner
               <header className="page-head">
                 <h1 className="display">{info.name}</h1>
                 <p className="lead">{info.lead}</p>
               </header>
-            ))}
+            )}
             {page === "dictation" ? <Home status={status} engine={engine} openSettings={(at) => openSettings(at)} go={setPage} />
               : page === "meet" ? <Meet />
               : page === "insights" ? <InsightsPage settings={status.settings} save={save} />
@@ -230,7 +209,7 @@ function App() {
               : page === "dictionary" ? <DictionaryPage {...db} hint={status.settings.dictionary_hint} hintWords={status.dictionary_hint_words} setHint={async (on) => { await save({ dictionary_hint: on }); }}
                 builtin={status.settings.builtin_vocabulary} setBuiltin={async (on) => { await save({ builtin_vocabulary: on }); }} />
               : page === "snippets" ? <SnippetsPage {...db} />
-              : page === "style" ? <><TextMode settings={status.settings} save={save} /><StylePage settings={status.settings} save={async (p) => { await save(p); }} cleanOn={status.settings.text_mode !== "verbatim"} /></>
+              : page === "style" ? <StylePage top={<TextMode settings={status.settings} save={save} />} clean={<CleanCard settings={status.settings} save={save} />} settings={status.settings} save={async (p) => { await save(p); }} cleanOn={status.settings.text_mode !== "verbatim"} />
               : <ScratchpadPage {...db} />}
           </div>
         </main>

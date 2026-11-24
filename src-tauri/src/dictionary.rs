@@ -52,6 +52,12 @@ impl History {
         rows.collect::<Result<Vec<_>, _>>().map_err(err)
     }
 
+    /// The entries used while dictating: those switched on.
+    pub fn dict_enabled(&self) -> Result<Vec<Entry>, String> {
+        let off: std::collections::HashSet<i64> = self.meta("dictionary")?.into_iter().filter(|(_, m)| m["enabled"] == false).map(|(id, _)| id).collect();
+        Ok(self.dict_list()?.into_iter().filter(|e| !off.contains(&e.id)).collect())
+    }
+
     pub fn dict_add(&self, kind: &str, term: &str, replacement: Option<&str>) -> Result<i64, String> {
         let (kind, term, replacement) = validate(kind, term, replacement)?;
         let now = now_ms();

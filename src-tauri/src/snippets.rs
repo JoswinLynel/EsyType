@@ -71,6 +71,12 @@ impl History {
         rows.collect::<Result<Vec<_>, _>>().map_err(err)
     }
 
+    /// The snippets used while dictating: those switched on.
+    pub fn snip_enabled(&self) -> Result<Vec<Snippet>, String> {
+        let off: std::collections::HashSet<i64> = self.meta("snippets")?.into_iter().filter(|(_, m)| m["enabled"] == false).map(|(id, _)| id).collect();
+        Ok(self.snip_list()?.into_iter().filter(|s| !off.contains(&s.id)).collect())
+    }
+
     pub fn snip_add(&self, trigger: &str, body: &str, mode: &str) -> Result<i64, String> {
         let (trigger, body, mode, key) = validate(trigger, body, mode)?;
         let n: i64 = self.conn.query_row("SELECT COUNT(*) FROM snippets", [], |r| r.get(0)).map_err(err)?;

@@ -1219,11 +1219,14 @@ fn insights_data(app: AppHandle) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn history_list(app: AppHandle, query: String, offset: i64) -> Result<serde_json::Value, String> {
+fn history_list(app: AppHandle, query: String, offset: i64, show: Option<String>) -> Result<serde_json::Value, String> {
     let days = app.state::<Shared>().settings.lock().unwrap().history_retention_days;
     // Expired entries go before anything is shown, even if EsyType has been idle since they expired.
-    let (items, total) = with_history(&app, |h| h.purge(days).and_then(|_| h.list(&query, 50, offset.max(0))))?;
-    Ok(json!({ "items": items, "total": total }))
+    with_history(&app, |h| {
+        h.purge(days)?;
+        let (items, total) = h.list_shown(&query, show.as_deref().unwrap_or(""), 50, offset.max(0))?;
+        Ok(json!({ "items": items, "total": total, "stats": h.stats()? }))
+    })
 }
 
 #[tauri::command]
@@ -1238,7 +1241,7 @@ fn history_delete(app: AppHandle, id: i64) -> Result<(), String> {
 
 /// Rebuilds the in-memory dictionary after a change; dictation only ever reads this copy.
 fn reload_dictionary(app: &AppHandle) {
-    if let Ok(list) = with_history(app, |h| h.dict_list()) {
+    if let Ok(list) = with_history(app, |h| h.dict_enabled()) {
         let builtins = app.state::<Shared>().settings.lock().unwrap().builtin_vocabulary;
         *app.state::<Shared>().dict.lock().unwrap() = dictionary_matcher(list, builtins);
     }
@@ -1259,8 +1262,36 @@ fn vocabulary_names() -> Vec<(&'static str, Vec<&'static str>)> {
 }
 
 #[tauri::command]
-fn dict_list(app: AppHandle) -> Result<Vec<dictionary::Entry>, String> {
-    with_history(&app, |h| h.dict_list())
+fn dict_list(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    with_history(&app, |h| with_meta(h.dict_list()?, h.meta("dictionary")?, |e| e.id))
+}
+
+/// Each entry with its category, note and on/off (Mac design: Dictionary and Snippets).
+fn with_meta<T: serde::Serialize>(list: Vec<T>, meta: std::collections::HashMap<i64, serde_json::Value>, id: impl Fn(&T) -> i64) -> Result<Vec<serde_json::Value>, String> {
+    Ok(list
+        .into_iter()
+        .map(|e| {
+            let mut v = json!(e);
+            if let (Some(o), Some(m)) = (v.as_object_mut(), meta.get(&id(&e)).and_then(|m| m.as_object())) {
+                o.extend(m.clone());
+            }
+            v
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn dict_meta(app: AppHandle, id: i64, category: String, description: String, enabled: bool) -> Result<(), String> {
+    with_history(&app, |h| h.set_meta("dictionary", id, &category, &description, enabled))?;
+    reload_dictionary(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn snip_meta(app: AppHandle, id: i64, category: String, enabled: bool) -> Result<(), String> {
+    with_history(&app, |h| h.set_meta("snippets", id, &category, "", enabled))?;
+    reload_snippets(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1293,9 +1324,10 @@ fn dict_clear(app: AppHandle) -> Result<(), String> {
 
 /// Imports CSV or JSON text (read by the window's file picker): adds new entries, skips duplicates.
 #[tauri::command]
-fn dict_import(app: AppHandle, text: String) -> Result<serde_json::Value, String> {
+fn dict_import(app: AppHandle, text: String, dry: Option<bool>) -> Result<serde_json::Value, String> {
     let entries = dictionary::parse_import(&text)?;
-    let (added, duplicates, problems) = with_history(&app, |h| h.dict_import(&entries))?;
+    // dry: what the import would do, for the preview; nothing changes
+    let (added, duplicates, problems) = with_history(&app, |h| h.trial(!dry.unwrap_or(false), |h| h.dict_import(&entries)))?;
     reload_dictionary(&app);
     Ok(json!({ "added": added, "duplicates": duplicates, "problems": problems }))
 }
@@ -1341,14 +1373,14 @@ fn export_path(name: &str, ext: &str) -> Result<std::path::PathBuf, String> {
 }
 
 fn reload_snippets(app: &AppHandle) {
-    if let Ok(list) = with_history(app, |h| h.snip_list()) {
+    if let Ok(list) = with_history(app, |h| h.snip_enabled()) {
         *app.state::<Shared>().snippets.lock().unwrap() = snippets::Matcher::new(&list);
     }
 }
 
 #[tauri::command]
-fn snip_list(app: AppHandle) -> Result<Vec<snippets::Snippet>, String> {
-    with_history(&app, |h| h.snip_list())
+fn snip_list(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    with_history(&app, |h| with_meta(h.snip_list()?, h.meta("snippets")?, |s| s.id))
 }
 
 #[tauri::command]
@@ -1380,9 +1412,9 @@ fn snip_clear(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn snip_import(app: AppHandle, text: String) -> Result<serde_json::Value, String> {
+fn snip_import(app: AppHandle, text: String, dry: Option<bool>) -> Result<serde_json::Value, String> {
     let list = snippets::parse_import(&text)?;
-    let (added, duplicates, problems) = with_history(&app, |h| h.snip_import(&list))?;
+    let (added, duplicates, problems) = with_history(&app, |h| h.trial(!dry.unwrap_or(false), |h| h.snip_import(&list)))?;
     reload_snippets(&app);
     Ok(json!({ "added": added, "duplicates": duplicates, "problems": problems }))
 }
@@ -1830,8 +1862,8 @@ fn main() {
             cancel_download: Arc::new(AtomicBool::new(false)),
             last: Mutex::new(serde_json::Value::Null),
             last_insert: Mutex::new(None),
-            dict: Mutex::new(dictionary_matcher(history.as_ref().and_then(|h| h.dict_list().ok()).unwrap_or_default(), builtin_vocabulary)),
-            snippets: Mutex::new(snippets::Matcher::new(&history.as_ref().and_then(|h| h.snip_list().ok()).unwrap_or_default())),
+            dict: Mutex::new(dictionary_matcher(history.as_ref().and_then(|h| h.dict_enabled().ok()).unwrap_or_default(), builtin_vocabulary)),
+            snippets: Mutex::new(snippets::Matcher::new(&history.as_ref().and_then(|h| h.snip_enabled().ok()).unwrap_or_default())),
             history: Mutex::new(history),
             history_error: Mutex::new(history_error),
             tray_clean: Mutex::new(None),
@@ -1881,7 +1913,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy, usage_summary, insights_data, ui_state, ui_remember,
+        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy, usage_summary, insights_data, ui_state, ui_remember, dict_meta, snip_meta,
             dict_list, dict_add, dict_update, dict_delete, dict_clear, dict_import, dict_export, snip_list, snip_add, snip_update, snip_delete, snip_clear, snip_import, snip_export, snip_preview, style_preview, recent_apps, notes_list, note_get, note_create, note_save, note_delete, notes_clear, note_export, flushed, show_in_folder, dismiss_settings_problem, open_folder, check_shortcut, pause_shortcuts, mic_test, hide_window, history_export, settings_export, settings_import_preview, settings_import_apply, backup_now, backup_check, backup_forget, restore_backup, undo_restore, delete_all_data, copy_text, pill_cancel, pill_copy, pill_original, pill_undo, pill_use_original, pill_stop])
         .run(context)
         .expect("EsyType failed to start");

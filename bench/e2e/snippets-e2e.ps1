@@ -115,8 +115,8 @@ try {
   $csv = Join-Path $exports 'EsyType snippets.csv'; $json = Join-Path $exports 'EsyType snippets.json'
   Check 'Export CSV and JSON' ((Test-Path $csv) -and (Test-Path $json)) ((Get-ChildItem $exports).Name -join ', ')
   $before = (Entries).Count
-  Invoke-El (Btn 'Delete all'); $msg = Answer-Dialog $root 'Delete all'; Start-Sleep 1
-  Check 'Delete all asks, then empties' ((Entries).Count -eq 0 -and $msg -match 'cannot be undone') "'$msg'"
+  Invoke-El (Btn 'Delete all'); $msg = Answer-Dialog $root 'Delete all *' -Like; Start-Sleep 1   # the button names the count
+  Check 'Delete all asks, then empties' ((Entries).Count -eq 0 -and $msg -match 'can.t be undone') "'$msg'"
   Invoke-El (Btn 'Import'); Start-Sleep 2
   $mine = @($app.Id) + @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $app.Id } | ForEach-Object { [int]$_.ProcessId })
   $dlg = Find-El $root 'Open' $CT::Window
@@ -131,6 +131,7 @@ try {
     if ([D]::GetForegroundWindow() -ne $dh) { throw 'The file picker is not in front; nothing typed.' }
     [System.Windows.Forms.SendKeys]::SendWait($csv); Start-Sleep 0.3; [System.Windows.Forms.SendKeys]::SendWait('{ENTER}'); Start-Sleep 2
   }
+  $preview = Answer-Dialog $root 'Import'; Start-Sleep 1.5   # the preview: nothing changes until Import
   $back = Entries
   Check 'Import restores every snippet, line breaks intact' ($back.Count -eq $before -and ($back | Where-Object { $_.trigger -eq 'my email signature' }).body -eq $sig) "'$(Status)'"
 } catch {

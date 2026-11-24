@@ -119,19 +119,19 @@ try {
   $csv = Join-Path $exports 'EsyType dictionary.csv'; $json = Join-Path $exports 'EsyType dictionary.json'
   Check 'Export CSV and JSON' ((Test-Path $csv) -and (Test-Path $json) -and (Get-Content $csv -Raw) -match 'correction,Tori,Tauri') ((Get-ChildItem $exports).Name -join ', ')
   $before = (Entries).Count
-  Invoke-El (Btn 'Delete all'); $msg = Answer-Dialog $root 'Delete all'; Start-Sleep 1
-  Check 'Delete all asks, then empties the dictionary' ((Entries).Count -eq 0 -and $msg -match 'cannot be undone') "'$msg'"
+  Invoke-El (Btn 'Delete all'); $msg = Answer-Dialog $root 'Delete all *' -Like; Start-Sleep 1   # the button names the count
+  Check 'Delete all asks, then empties the dictionary' ((Entries).Count -eq 0 -and $msg -match 'can.t be undone') "'$msg'"
   Check 'Exports hold only your own entries (no built-in names)' ((Get-Content $csv -Raw) -notmatch 'ChatGPT|Supabase,|GitHub') ''
 
   # --- built-in product names (Verbatim is still on): kept apart from the dictionary, switchable -----------------
   Check 'Built-in list shown on the page' ([bool](Find-El $root 'Show the list (*names)' $null -Like)) ''
   $r = Dictate "I'm using ChatGPT to transcribe certain things."
   Check 'Built-in: corrected after Delete all; History keeps what was heard' ($r.Inserted -cmatch '\bChatGPT\b' -and $r.Row.raw_text -cnotmatch 'ChatGPT') "'$($r.Inserted)' (heard '$($r.Row.raw_text)')"
-  Invoke-El (Find-El $root 'Correct common product names*' $CT::CheckBox -Like); Start-Sleep 1.5
+  Invoke-El (Find-El $root 'Correct common product names' -Tries 10); Start-Sleep 1.5
   $saved = (Get-Content (Join-Path $data 'settings.json') -Raw | ConvertFrom-Json).builtin_vocabulary
   $r = Dictate "I'm using ChatGPT to transcribe certain things."
   Check 'Built-in switched off: saved, and no longer corrects' ($saved -eq $false -and $r.Inserted -cnotmatch '\bChatGPT\b') "setting $saved; '$($r.Inserted)'"
-  Invoke-El (Find-El $root 'Correct common product names*' $CT::CheckBox -Like); Start-Sleep 1.5
+  Invoke-El (Find-El $root 'Correct common product names' -Tries 10); Start-Sleep 1.5
   Check 'Built-in switched back on' ((Get-Content (Join-Path $data 'settings.json') -Raw | ConvertFrom-Json).builtin_vocabulary -eq $true) ''
   Invoke-El (Btn 'Import'); Start-Sleep 2
   # The picker belongs to the test build or its WebView2 helper processes; never to another program.
@@ -151,6 +151,7 @@ try {
     if ([D]::GetForegroundWindow() -ne $dh) { throw 'The file picker is not in front; nothing typed.' }
     [System.Windows.Forms.SendKeys]::SendWait($csv); Start-Sleep 0.3; [System.Windows.Forms.SendKeys]::SendWait('{ENTER}'); Start-Sleep 2
   }
+  $preview = Answer-Dialog $root 'Import'; Start-Sleep 1.5   # the preview: nothing changes until Import
   Check 'Import restores every entry' ((Entries).Count -eq $before -and (Status) -match "Imported $before") "'$(Status)'"
 } catch {
   "STOPPED: $($_.Exception.Message) at line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())"

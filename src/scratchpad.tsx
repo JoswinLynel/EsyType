@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ask, Banner, Empty, exported, ListHead, listArrows, NoMatch, SearchBox, SkeletonRows, toast, toastError } from "./ui";
+import { PageTop } from "./hero";
+import { ask, Banner, Empty, exported, Icon, ListHead, listArrows, NoMatch, SearchBox, SkeletonRows, toast, toastError } from "./ui";
+
+/** "just now", "2 minutes ago", "3 hours ago", else the date. */
+const ago = (ms: number) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} ${m === 1 ? "minute" : "minutes"} ago` : m < 1440 ? `${Math.round(m / 60)} ${Math.round(m / 60) === 1 ? "hour" : "hours"} ago` : new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); };
 
 type Summary = { id: number; title: string; words: number; updated_at: number };
 
@@ -89,7 +93,7 @@ export function ScratchpadPage({ available, dbError }: { available: boolean; dbE
   };
   const remove = async () => {
     if (id === null) return fresh();
-    if (!await ask({ title: "Delete this note?", body: "This cannot be undone.", action: "Delete", danger: true })) return;
+    if (!await ask({ title: "Delete this note?", body: "This can’t be undone.", action: "Delete", danger: true })) return;
     try {
       await invoke("note_delete", { id }); live.current = { id: null, text: "", dirty: false }; setId(null); setText(""); setStatus(""); refresh();
       toast("Note deleted."); document.getElementById("note-text")?.focus();
@@ -98,14 +102,18 @@ export function ScratchpadPage({ available, dbError }: { available: boolean; dbE
   const words = text.split(/\s+/).filter(Boolean).length;
 
   return (
+    <div className="stack">
+    <PageTop id="scratchpad" title="Scratchpad" hero={{ headline: ["Think out ", "loud", "."], glow: "var(--et-glow-scratchpad)",
+      message: "Notes that save themselves as you write or dictate. Click in a note, hold your shortcut and speak: the text goes in at the cursor.",
+      actions: <><button className="hero-btn" onClick={fresh}>New note</button>{words > 0 && <span className="hero-chip">{words.toLocaleString()} {words === 1 ? "word" : "words"} in this note</span>}</> }} />
     <div className="pad">
       <section className="panel pad-list">
-        <button className="btn primary" onClick={fresh}>New note</button>
+        <button className="btn dark" onClick={fresh}>New note</button>
         <ListHead title="Notes" count={available && loaded ? list.length : undefined}
-          danger={<button className="btn sm danger" disabled={!list.length} onClick={async () => {
-            if (!await ask({ title: `Delete all ${list.length} notes?`, body: "This cannot be undone. Export any you want to keep first.", action: "Delete all notes", danger: true })) return;
+          danger={<button className="btn sm danger" aria-label="Delete all notes" disabled={!list.length} onClick={async () => {
+            if (!await ask({ title: "Delete all notes?", body: "This can’t be undone. Export any you want to keep first.", action: "Delete all notes", danger: true })) return;
             try { await invoke("notes_clear"); live.current = { id: null, text: "", dirty: false }; setId(null); setText(""); refresh(); toast("All notes deleted."); } catch (e) { toastError(e); }
-          }}>Delete all notes</button>} />
+          }}>Delete all</button>} />
         <SearchBox label="Search notes" placeholder="Search notes" value={query} onChange={setQuery} />
         {!available && <Banner tone="red">Notes cannot be saved{dbError ? `: ${dbError}` : "."} You can still write here and use Copy all.</Banner>}
         {available && !loaded ? <SkeletonRows /> : list.length === 0 ? (
@@ -117,7 +125,7 @@ export function ScratchpadPage({ available, dbError }: { available: boolean; dbE
               <li key={n.id}>
                 <button className={"note" + (n.id === id ? " on" : "")} aria-current={n.id === id ? "true" : undefined} onClick={() => open(n.id)}>
                   <span className="note-title">{n.title}</span>
-                  <span className="small">{new Date(n.updated_at).toLocaleString()} · {n.words} {n.words === 1 ? "word" : "words"}</span>
+                  <span className="small" title={new Date(n.updated_at).toLocaleString()}>{ago(n.updated_at)} · {n.words} {n.words === 1 ? "word" : "words"}</span>
                 </button>
               </li>
             ))}
@@ -130,14 +138,15 @@ export function ScratchpadPage({ available, dbError }: { available: boolean; dbE
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="small" role="status">{words} {words === 1 ? "word" : "words"}{status ? ` · ${status}` : ""}</span>
           <span className="row">
-            <button className="btn sm" disabled={!text} onClick={async () => { try { await invoke("copy_text", { text }); toast("Copied."); } catch (e) { toastError(e); } }}>Copy all</button>
-            <button className="btn sm" disabled={id === null} onClick={async () => { await save(); try { exported(await invoke<string>("note_export", { id, format: "txt" })); } catch (e) { toastError(e); } }}>Export .txt</button>
-            <button className="btn sm" disabled={id === null} onClick={async () => { await save(); try { exported(await invoke<string>("note_export", { id, format: "md" })); } catch (e) { toastError(e); } }}>Export .md</button>
-            <button className="btn sm" disabled={id === null && !text} onClick={remove}>Delete</button>
+            <button className="btn sm tool" disabled={!text} onClick={async () => { try { await invoke("copy_text", { text }); toast("Copied."); } catch (e) { toastError(e); } }}><Icon name="copy" size={14} />Copy all</button>
+            <button className="btn sm tool" aria-label="Export .txt" disabled={id === null} onClick={async () => { await save(); try { exported(await invoke<string>("note_export", { id, format: "txt" })); } catch (e) { toastError(e); } }}><Icon name="export" size={14} />.txt</button>
+            <button className="btn sm tool" aria-label="Export .md" disabled={id === null} onClick={async () => { await save(); try { exported(await invoke<string>("note_export", { id, format: "md" })); } catch (e) { toastError(e); } }}><Icon name="export" size={14} />.md</button>
+            <button className="btn sm danger" disabled={id === null && !text} onClick={remove}>Delete</button>
           </span>
         </div>
-        <p className="small">Notes stay on this PC until you delete them; History's settings never touch them.</p>
       </section>
+    </div>
+    <p className="small">Notes stay on this PC until you delete them; History’s settings never touch them.</p>
     </div>
   );
 }

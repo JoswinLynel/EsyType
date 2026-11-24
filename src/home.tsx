@@ -6,7 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { Settings, Status } from "./settings";
 import type { Entry } from "./history";
 import { PageTop } from "./hero";
-import { Banner, Icon } from "./ui";
+import { Banner, Icon, Switch } from "./ui";
 
 type Usage = { words: number; audio_ms: number; dictations: number; since: string | null; streak: number; dictionary: number; snippets: number };
 type Go = "insights" | "history" | "dictionary" | "style";
@@ -141,6 +141,26 @@ export function TextMode({ settings, save }: { settings: Settings; save: (p: Par
         </label>
       </div>
       <p className="small">Also in the tray menu. Styles below apply in Clean mode.</p>
+    </section>
+  );
+}
+
+/** Clean, before any style (Mac design: Style). EsyType's Clean always removes fillers, follows "scratch that" and "new
+ * line", fixes spacing and capitals, and formats numbers; these are its two choices. */
+export function CleanCard({ settings, save }: { settings: Settings; save: (p: Partial<Settings>) => Promise<boolean> }) {
+  return (
+    <section className="panel">
+      <h2>Clean, before any style</h2>
+      <p className="small">Clean runs first in every app: it removes fillers (“um, uh, erm”), follows “scratch that” and “new line”, fixes spacing, punctuation and capitals, and writes numbers, money, dates and times as you would type them. Links, emails and code are never changed.</p>
+      <div className="switch-row">
+        <span><span className="switch-title">Also remove “you know”, “I mean”, “like”, “sort of” and “kind of”</span><span className="small">only when set off by commas</span></span>
+        <Switch on={settings.clean_fillers_extended} set={(on) => save({ clean_fillers_extended: on })} label="Also remove you know, I mean, like, sort of and kind of" />
+      </div>
+      <div className="switch-row">
+        <span><span className="switch-title">Write zero to nine as words</span><span className="small">“3 apples” → “three apples”; larger numbers, money and times stay as digits</span></span>
+        <Switch on={settings.clean_small_numbers_as_words} set={(on) => save({ clean_small_numbers_as_words: on })} label="Write zero to nine as words" />
+      </div>
+      <p className="small">The original is kept in History (unless you turned that off). Rules only: nothing leaves this PC.</p>
     </section>
   );
 }

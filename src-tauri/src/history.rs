@@ -92,6 +92,13 @@ const MIGRATIONS: &[&str] = &[
             WHEN lower(app) IN ('chrome.exe', 'msedge.exe', 'firefox.exe', 'brave.exe', 'opera.exe', 'vivaldi.exe', 'arc.exe') THEN 'Browser'
             ELSE 'Other' END, sum(word_count)
         FROM transcripts GROUP BY 1, 2;",
+    // v9: a category and a note per Dictionary entry, a category per snippet, and an on/off switch for both;
+    // switched-off entries stay listed and exported but are not used while dictating
+    "ALTER TABLE dictionary ADD COLUMN category TEXT;
+    ALTER TABLE dictionary ADD COLUMN description TEXT;
+    ALTER TABLE dictionary ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE snippets ADD COLUMN category TEXT;
+    ALTER TABLE snippets ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;",
 ];
 
 /// Kinds of app for Insights, by the program's file name only (never window titles or what was written). A browser is
@@ -246,6 +253,51 @@ impl History {
         Ok(self.conn.last_insert_rowid())
     }
 
+    /// Runs `f` and keeps its changes only when `keep` is true (a dry run reports what an import would do).
+    pub fn trial<T>(&self, keep: bool, f: impl FnOnce(&History) -> Result<T, String>) -> Result<T, String> {
+        self.conn.execute_batch("SAVEPOINT trial").map_err(err)?;
+        let r = f(self);
+        let end = if keep && r.is_ok() { "RELEASE trial" } else { "ROLLBACK TO trial; RELEASE trial" };
+        self.conn.execute_batch(end).map_err(err)?;
+        r
+    }
+
+    /// Category, note and on/off for each Dictionary entry or snippet (`table`: "dictionary" or "snippets"), by id.
+    pub fn meta(&self, table: &str) -> Result<std::collections::HashMap<i64, serde_json::Value>, String> {
+        let desc = if table == "dictionary" { "description" } else { "NULL" };
+        let mut st = self.conn.prepare(&format!("SELECT id, category, {desc}, enabled FROM {table}")).map_err(err)?;
+        let rows = st
+            .query_map([], |r| Ok((r.get::<_, i64>(0)?, serde_json::json!({ "category": r.get::<_, Option<String>>(1)?, "description": r.get::<_, Option<String>>(2)?, "enabled": r.get::<_, i64>(3)? != 0 }))))
+            .map_err(err)?;
+        rows.collect::<Result<_, _>>().map_err(err)
+    }
+
+    /// Sets an entry's category, note (Dictionary only) and on/off. Empty text clears it.
+    pub fn set_meta(&self, table: &str, id: i64, category: &str, description: &str, enabled: bool) -> Result<(), String> {
+        let (category, description) = (category.trim(), description.trim());
+        if category.chars().count() > 40 || description.chars().count() > 200 {
+            return Err("The category can have up to 40 characters and the note up to 200.".into());
+        }
+        let opt = |s: &str| (!s.is_empty()).then(|| s.to_string());
+        if table == "dictionary" {
+            self.conn.execute("UPDATE dictionary SET category = ?2, description = ?3, enabled = ?4 WHERE id = ?1", params![id, opt(category), opt(description), enabled]).map_err(err)?;
+        } else {
+            self.conn.execute("UPDATE snippets SET category = ?2, enabled = ?3 WHERE id = ?1", params![id, opt(category), enabled]).map_err(err)?;
+        }
+        Ok(())
+    }
+
+    /// For the History page: how many dictations and words, how many not inserted, and the six most used programs.
+    pub fn stats(&self) -> Result<serde_json::Value, String> {
+        let (n, words, failed): (i64, i64, i64) = self
+            .conn
+            .query_row("SELECT count(*), coalesce(sum(word_count), 0), coalesce(sum(outcome = 'failed'), 0) FROM transcripts", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .map_err(err)?;
+        let mut st = self.conn.prepare("SELECT app FROM transcripts WHERE app IS NOT NULL GROUP BY app ORDER BY count(*) DESC, app LIMIT 6").map_err(err)?;
+        let apps: Vec<String> = st.query_map([], |r| r.get(0)).map_err(err)?.collect::<Result<_, _>>().map_err(err)?;
+        Ok(serde_json::json!({ "dictations": n, "words": words, "not_inserted": failed, "apps": apps }))
+    }
+
     /// Counts a finished dictation in today's usage totals (numbers only), whether or not History is on.
     // shortcut: a dictation later undone still counts; subtract it in mark_undone if Insights needs exact figures.
     pub fn add_usage(&self, words: i64, audio_ms: i64, processing_ms: i64, kind: &str) -> Result<(), String> {
@@ -302,10 +354,24 @@ impl History {
 
     /// Newest first. `query` matches the inserted or edited text, case-insensitively.
     pub fn list(&self, query: &str, limit: i64, offset: i64) -> Result<(Vec<Entry>, i64), String> {
+        self.list_shown(query, "", limit, offset)
+    }
+
+    /// Like `list`, narrowed by `show`: "today", "week" (since Monday), "failed" (not inserted), "app:<file name>",
+    /// or "" for everything. Days are local.
+    pub fn list_shown(&self, query: &str, show: &str, limit: i64, offset: i64) -> Result<(Vec<Entry>, i64), String> {
         // shortcut: LIKE scans every row; fine for tens of thousands of dictations, switch to FTS5 if search gets slow.
         let like = format!("%{}%", query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
-        let filter = "(?1 = '%%' OR final_text LIKE ?1 ESCAPE '\\' OR edited_text LIKE ?1 ESCAPE '\\')";
-        let total: i64 = self.conn.query_row(&format!("SELECT COUNT(*) FROM transcripts WHERE {filter}"), params![like], |r| r.get(0)).map_err(err)?;
+        let app = show.strip_prefix("app:").unwrap_or("");
+        let narrow = match show {
+            "today" => " AND created_at >= CAST(strftime('%s', date('now', 'localtime'), 'utc') AS INTEGER) * 1000",
+            "week" => " AND created_at >= CAST(strftime('%s', date('now', 'localtime', '-6 days', 'weekday 1'), 'utc') AS INTEGER) * 1000",
+            "failed" => " AND outcome = 'failed'",
+            _ if !app.is_empty() => " AND app = ?4",
+            _ => "",
+        };
+        let filter = format!("(?1 = '%%' OR final_text LIKE ?1 ESCAPE '\\' OR edited_text LIKE ?1 ESCAPE '\\'){narrow} AND (?4 = ?4)");
+        let total: i64 = self.conn.query_row(&format!("SELECT COUNT(*) FROM transcripts WHERE {filter}"), params![like, 0, 0, app], |r| r.get(0)).map_err(err)?;
         let mut st = self
             .conn
             .prepare(&format!(
@@ -314,7 +380,7 @@ impl History {
             ))
             .map_err(err)?;
         let rows = st
-            .query_map(params![like, limit, offset], |r| {
+            .query_map(params![like, limit, offset, app], |r| {
                 Ok(Entry {
                     id: r.get(0)?,
                     created_at: r.get(1)?,
@@ -556,6 +622,29 @@ mod tests {
     }
 
     #[test]
+    fn meta_switch_and_trial_import() {
+        let h = History::open(&temp_db("meta")).unwrap();
+        let id = h.dict_add("word", "Tauri", None).unwrap();
+        h.set_meta("dictionary", id, " Technical ", "", false).unwrap();
+        let m = h.meta("dictionary").unwrap();
+        assert_eq!(m[&id]["category"], "Technical");
+        assert_eq!(m[&id]["description"], serde_json::Value::Null);
+        assert_eq!(m[&id]["enabled"], false);
+        assert_eq!(h.dict_enabled().unwrap().len(), 0, "a switched-off entry is not used for dictation");
+        assert_eq!(h.dict_list().unwrap().len(), 1, "but it is still listed and exported");
+        assert!(h.set_meta("dictionary", id, &"x".repeat(41), "", true).is_err());
+        let e = crate::dictionary::Entry { id: 0, kind: "word".into(), term: "Kubernetes".into(), replacement: None, uses: 0 };
+        let dry = h.trial(false, |h| h.dict_import(&[e.clone()])).unwrap();
+        assert_eq!((dry.0, h.dict_list().unwrap().len()), (1, 1), "a dry run reports one new entry and changes nothing");
+        h.trial(true, |h| h.dict_import(&[e])).unwrap();
+        assert_eq!(h.dict_list().unwrap().len(), 2);
+        let s = h.snip_add("my sign off", "Kind regards", "whole").unwrap();
+        h.set_meta("snippets", s, "Email", "ignored for snippets", false).unwrap();
+        assert_eq!(h.meta("snippets").unwrap()[&s]["category"], "Email");
+        assert_eq!(h.snip_enabled().unwrap().len(), 0);
+    }
+
+    #[test]
     fn export_and_clear_everything() {
         assert_eq!(iso_utc(0), "1970-01-01T00:00:00Z");
         assert_eq!(iso_utc(1_763_735_405_000), "2025-11-21T14:30:05Z");
@@ -600,6 +689,13 @@ mod tests {
         assert_eq!(h.list("HELLO", 50, 0).unwrap().1, 1); // case-insensitive
         assert_eq!(h.list("50%", 50, 0).unwrap().1, 1); // % is matched literally
         assert_eq!(h.list("5_%", 50, 0).unwrap().1, 0); // _ is matched literally
+        assert_eq!(h.list_shown("", "today", 50, 0).unwrap().1, 2, "both were added today");
+        assert_eq!(h.list_shown("", "week", 50, 0).unwrap().1, 2);
+        assert_eq!(h.list_shown("", "failed", 50, 0).unwrap().1, 0);
+        assert_eq!(h.list_shown("", "app:WINWORD.EXE", 50, 0).unwrap().1, 1);
+        assert_eq!(h.list_shown("HELLO", "app:nothing.exe", 50, 0).unwrap().1, 0);
+        let s = h.stats().unwrap();
+        assert_eq!((s["dictations"].as_i64(), s["apps"][0].as_str()), (Some(2), Some("WINWORD.EXE")));
         h.edit(id, "Hello, world!").unwrap();
         assert_eq!(h.list("world!", 50, 0).unwrap().0[0].edited_text.as_deref(), Some("Hello, world!"));
         h.edit(id, "  ").unwrap(); // empty edit = undo: back to the inserted text

@@ -20,6 +20,13 @@ const PATHS: Record<string, ReactNode> = {
   folder: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
   search: <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>,
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
+  copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
+  edit: <><path d="M4 20l4-1 10.5-10.5-3-3L5 16z" /><path d="M13.5 7.5l3 3" /></>,
+  trash: <><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></>,
+  word: <><path d="M3 18l4-11 4 11M4.5 14h5" /><path d="M14 11.5a3 3 0 1 1 0 4.8M20 9v9" /></>,
+  swap: <><path d="M4 8h13l-3-3M20 16H7l3 3" /></>,
+  quote: <><path d="M7 7h4v4c0 3-1.5 5-4 6M14 7h4v4c0 3-1.5 5-4 6" /></>,
+  export: <><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5" /><path d="M5 13v6h14v-6" /></>,
 };
 export type IconName = keyof typeof PATHS;
 
@@ -180,7 +187,7 @@ export function Banner({ tone, children, action }: { tone: "red" | "amber"; chil
 export function ListHead({ title, count, children, danger }: { title: string; count?: number; children?: ReactNode; danger?: ReactNode }) {
   return (
     <div className="list-head">
-      <h2>{count === undefined ? title : `${title} (${count})`}</h2>
+      <h2 aria-label={count === undefined ? undefined : `${title} (${count})`}>{title}{count !== undefined && <span className="count-badge" aria-hidden="true">{count}</span>}</h2>
       <div className="row">{children}{danger && <span className="list-danger">{danger}</span>}</div>
     </div>
   );
@@ -230,7 +237,8 @@ export function listArrows(e: React.KeyboardEvent<HTMLElement>) {
   if (at < 0 || !next) return;
   e.preventDefault();
   const items = Array.from(next.querySelectorAll<HTMLElement>(FOCUSABLE));
-  (items.find((x) => x.textContent === t.textContent) ?? items[0])?.focus();
+  const key = (x: HTMLElement) => x.getAttribute("aria-label") ?? x.textContent; // icon buttons are named by aria-label
+  (items.find((x) => key(x) === key(t)) ?? items[0])?.focus();
 }
 
 /** Keeps the keyboard in the list after a row is deleted. Call `deleting()` from the row's Delete (focus is on that
@@ -269,4 +277,9 @@ export function Empty({ icon, title, text, action }: { icon: IconName; title: st
       {action}
     </div>
   );
+}
+
+/** An on/off switch (Mac design: SwitchRow); `small` for list rows. */
+export function Switch({ on, set, label, small }: { on: boolean; set: (on: boolean) => void; label: string; small?: boolean }) {
+  return <button role="switch" aria-checked={on} aria-label={label} title={label} className={"switch" + (small ? " sm" : "") + (on ? " on" : "")} onClick={() => set(!on)}><i /></button>;
 }

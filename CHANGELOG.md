@@ -4,6 +4,31 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-24: Mac design, milestone D, the list pages (test build, not released; key-pressing suites pending)
+
+**Added**
+
+- **History:** a banner with counts; filters (Today, This week, Not inserted, your top programs); day cards; search matches highlighted; Copy, Edit and Delete as icon buttons; an Edit sheet.
+- **Dictionary and Snippets:**
+  - banner chips
+  - a category, note (Dictionary) and on/off switch per entry; switched-off entries are kept but not used
+  - clash warnings
+  - Edit sheets
+  - a preview before any import changes anything
+- **Style:** banner chips; clickable style cards with live examples; app rules in the row style; Custom style and Clean's options as switches; Try it as six result cards.
+- **Scratchpad:** a banner with the note's word count; "2 minutes ago" times; .txt and .md buttons.
+- Database change v9: category, note and on/off for Dictionary entries; category and on/off for snippets.
+
+**Fixed**
+
+- Up and Down between list rows now keep to the same button.
+
+**Tests**
+
+- Unit 66/66 and most suites pass.
+- Four key-pressing suites still need an idle PC.
+- Record: `docs/testing/2026-11-24-mac-design-d.md`.
+
 ### 2026-11-24: Mac design, milestone C, Insights (test build, not released)
 
 **Added**
