@@ -9,6 +9,8 @@ macro_rules! trace {
 }
 
 mod audio;
+mod sound;
+mod keyhook;
 mod clean;
 mod dictionary;
 mod vocabulary;
@@ -154,6 +156,9 @@ fn pill(app: &AppHandle, state: &str, message: &str) {
             unsafe {
                 let _ = ShowWindow(windows::Win32::Foundation::HWND(h.0 as _), cmd);
             }
+            if state != "hidden" {
+                pill_looks_active(&w);
+            }
         }
     }
 }
@@ -224,6 +229,12 @@ fn microphone_allowed() -> bool {
     [read(base), read(&format!(r"{base}\NonPackaged"))].iter().all(|v| v.as_deref() != Some("Deny"))
 }
 
+/// EsyAI's website, from About. Only this one address can be opened.
+#[tauri::command]
+fn open_website() -> Result<(), String> {
+    std::process::Command::new("explorer.exe").arg("https://esyai.co.uk").spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn open_mic_privacy() -> Result<(), String> {
     std::process::Command::new("explorer.exe").arg("ms-settings:privacy-microphone").spawn().map(|_| ()).map_err(|e| e.to_string())
@@ -248,7 +259,8 @@ fn transparency_effects() -> bool {
 }
 
 fn create_pill(app: &AppHandle) -> tauri::Result<()> {
-    let (w, h) = (320.0, 64.0);
+    // The window is exactly the pill's size; the page reports its size as the pill changes (pill_shape).
+    let (w, h) = (300.0, 44.0);
     let win = WebviewWindowBuilder::new(app, "pill", WebviewUrl::App("pill.html".into()))
         .title("EsyType recording")
         .inner_size(w, h)
@@ -265,20 +277,81 @@ fn create_pill(app: &AppHandle) -> tauri::Result<()> {
     // Clicking (or pressing through accessibility tools) a button on the pill must not activate it: the keys that
     // Undo sends belong to the window the user dictated into.
     if let Ok(h) = win.hwnd() {
+        use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
         use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE};
+        let hwnd = windows::Win32::Foundation::HWND(h.0 as _);
         unsafe {
-            let ex = GetWindowLongPtrW(windows::Win32::Foundation::HWND(h.0 as _), GWL_EXSTYLE);
-            SetWindowLongPtrW(windows::Win32::Foundation::HWND(h.0 as _), GWL_EXSTYLE, ex | WS_EX_NOACTIVATE.0 as isize);
+            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE.0 as isize);
+            // Windows 11 rounds the corners (8 px); the pill's own corners match.
+            let round = DWMWCP_ROUND;
+            let _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const _ as *const core::ffi::c_void, std::mem::size_of_val(&round) as u32);
         }
     }
-    if let Some(m) = win.primary_monitor()? {
+    // Frosted glass (Acrylic), only while Windows' Transparency effects are on (owner, 24 Nov: a frosted rounded
+    // rectangle). Windows 11 draws Acrylic only on a window that looks active, so the pill is kept looking active
+    // (pill_looks_active) without ever taking focus.
+    if transparency_effects() {
+        use tauri::window::{Color, Effect, EffectsBuilder};
+        let _ = win.set_effects(EffectsBuilder::new().effect(Effect::Acrylic).color(Color(14, 14, 20, 90)).build());
+    }
+    place_pill(&win, w, h);
+    Ok(())
+}
+
+/// Tells the pill's frame it is active without activating it (lParam -1: nothing is redrawn), so Windows 11 draws its
+/// Acrylic. The caret and keyboard stay in the user's app.
+fn pill_looks_active(win: &tauri::WebviewWindow) {
+    if let Ok(h) = win.hwnd() {
+        use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, WM_NCACTIVATE};
+        unsafe {
+            SendMessageW(windows::Win32::Foundation::HWND(h.0 as _), WM_NCACTIVATE, Some(windows::Win32::Foundation::WPARAM(1)), Some(windows::Win32::Foundation::LPARAM(-1)));
+        }
+    }
+}
+
+/// Sizes the pill window to the pill (CSS pixels) and keeps it at the bottom centre of the main screen's work area.
+fn place_pill(win: &tauri::WebviewWindow, w: f64, h: f64) {
+    let _ = win.set_size(tauri::LogicalSize::new(w, h));
+    if let Ok(Some(m)) = win.primary_monitor() {
         let sf = m.scale_factor();
         let area = m.work_area();
         let x = area.position.x + ((area.size.width as f64 - w * sf) / 2.0) as i32;
         let y = area.position.y + area.size.height as i32 - ((h + 24.0) * sf) as i32;
-        win.set_position(tauri::PhysicalPosition::new(x, y))?;
+        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
     }
-    Ok(())
+}
+
+/// Settings, Recording: plays the start or stop sound at a volume (0-100), when the slider is let go.
+#[tauri::command]
+fn preview_sound(start: bool, volume: u32) {
+    sound::play(start, volume.min(100) as f32 / 100.0);
+}
+
+/// Test builds only (does nothing otherwise): shows the pill in a given state, for screenshots of its glass.
+#[tauri::command]
+fn test_pill(app: AppHandle, state: String, message: String) {
+    #[cfg(feature = "e2e")]
+    {
+        pill(&app, &state, &message);
+        if state == "recording" {
+            for i in 0..32 {
+                let _ = app.emit_to("pill", "level", 0.35 + 0.6 * ((i as f32) * 0.7).sin().abs());
+            }
+        }
+    }
+    #[cfg(not(feature = "e2e"))]
+    let _ = (app, state, message);
+}
+
+/// The pill page reports its size whenever it changes.
+#[tauri::command]
+fn pill_shape(app: AppHandle, w: f64, h: f64) {
+    if let Some(win) = app.get_webview_window("pill") {
+        if w >= 40.0 && h >= 20.0 && w <= 1200.0 && h <= 120.0 {
+            place_pill(&win, w.ceil(), h.ceil());
+        }
+    }
 }
 
 // ---------- dictation pipeline ----------
@@ -299,7 +372,14 @@ fn start(app: &AppHandle, mode: Mode, pressed: Instant) {
     pill(app, "listening", "");
     let mic = s.settings.lock().unwrap().mic.clone();
     let (a1, a2) = (app.clone(), app.clone());
-    match audio::start(mic, move |l| { let _ = a1.emit_to("pill", "level", l); }, move || pill(&a2, "recording", "")) {
+    let hands_free = if matches!(mode, Mode::Toggle) { "hands-free" } else { "" };
+    {
+        let st = s.settings.lock().unwrap();
+        if st.sound_start {
+            sound::play(true, st.sound_volume as f32 / 100.0);
+        }
+    }
+    match audio::start(mic, move |l| { let _ = a1.emit_to("pill", "level", l); }, move || pill(&a2, "recording", hands_free)) {
         Ok(recording) => {
             if recording.fell_back {
                 trace!("microphone fallback");
@@ -309,6 +389,19 @@ fn start(app: &AppHandle, mode: Mode, pressed: Instant) {
             let exe = if s.settings.lock().unwrap().history_record_app { program.clone() } else { None };
             *s.dictation.lock().unwrap() = Some(Dictation { recording, mode, started: pressed, target, exe, program });
             let _ = app.global_shortcut().register(escape());
+            // The maximum length: the same dictation, still recording, is stopped and transcribed.
+            let limit = Duration::from_secs(s.settings.lock().unwrap().max_record_minutes.clamp(1, 60) as u64 * 60);
+            #[cfg(feature = "e2e")]
+            let limit = std::env::var("ESYTYPE_TEST_MAX_SECONDS").ok().and_then(|v| v.parse().ok()).map(Duration::from_secs).unwrap_or(limit);
+            let a = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(limit);
+                let same = a.state::<Shared>().dictation.lock().unwrap().as_ref().is_some_and(|d| d.started == pressed);
+                if same {
+                    trace!("maximum length reached");
+                    stop(&a);
+                }
+            });
         }
         Err(e) => {
             pill(app, "error", &e);
@@ -337,6 +430,12 @@ fn stop(app: &AppHandle) {
     trace!("stop");
     let Some(d) = take(app) else { return };
     let s = app.state::<Shared>();
+    {
+        let st = s.settings.lock().unwrap();
+        if st.sound_stop {
+            sound::play(false, st.sound_volume as f32 / 100.0);
+        }
+    }
     s.busy.store(true, Ordering::SeqCst);
     pill(app, "processing", "");
     let app = app.clone();
@@ -350,7 +449,14 @@ fn stop(app: &AppHandle) {
             let audio_s = pcm.len() as f64 / 16000.0;
             let t = Instant::now();
             let hint = if s.settings.lock().unwrap().dictionary_hint { s.dict.lock().unwrap().hint().to_string() } else { String::new() };
-            let raw = s.engine.transcribe(pcm, &hint)?;
+            // Other languages and Translate only with a model that knows them (Small); Tiny and Base are English-only.
+            let (lang, translate) = {
+                let st = s.settings.lock().unwrap();
+                let multilingual = s.loaded.lock().unwrap().as_deref().and_then(models::find).is_some_and(|m| m.languages != "English");
+                if multilingual { (st.language.clone(), st.translate) } else { ("en".to_string(), false) }
+            };
+            let (raw, heard) = s.engine.transcribe(pcm, &hint, &lang, translate)?;
+            let english = translate || heard == "en";
             let secs = t.elapsed().as_secs_f64();
             if raw.is_empty() {
                 return Ok(None);
@@ -358,7 +464,8 @@ fn stop(app: &AppHandle) {
             // Clean mode tidies the text; the engine's original is kept for History and the pill's Original button.
             // Snippets match what was heard, then the Dictionary (in both modes); snippet text and dictionary terms
             // are protected from Clean's rules and put back at the end.
-            let clean = s.settings.lock().unwrap().clean();
+            // Clean and Style are English rules: other languages go in as heard.
+            let clean = if english { s.settings.lock().unwrap().clean() } else { None };
             let (snip_text, bodies, snip_used) = s.snippets.lock().unwrap().apply(&raw, &snippets::Clock::now());
             let (dict_text, written, used) = s.dict.lock().unwrap().apply(&snip_text, clean.is_some());
             // The writing style for this program (Clean mode only); Standard changes nothing beyond Clean.
@@ -787,6 +894,40 @@ fn on_shortcut(app: &AppHandle, sc: &Shortcut, state: ShortcutState) {
     }
 }
 
+/// Push to talk on one key: hold to dictate; two quick taps for hands-free, one tap to stop (keyhook.rs).
+fn apply_ptt_key(app: &AppHandle, key: &str) {
+    let app = app.clone();
+    keyhook::set_key(keyhook::vk(key), move || {
+        let (tx, rx) = std::sync::mpsc::channel::<bool>();
+        std::thread::spawn(move || {
+            let mut down_at = Instant::now();
+            let mut last_tap: Option<Instant> = None;
+            for pressed in rx {
+                let now = Instant::now();
+                if pressed {
+                    down_at = now;
+                }
+                let held = now.duration_since(down_at);
+                let s = app.state::<Shared>();
+                let running = s.dictation.lock().unwrap().as_ref().map(|d| d.mode == Mode::Toggle);
+                let double_tap = s.settings.lock().unwrap().double_tap;
+                let since_tap = last_tap.map(|t| now.duration_since(t).as_millis() as u64);
+                match keyhook::decide(pressed, running, held.as_millis() as u64, since_tap, double_tap, MIN_HOLD.as_millis() as u64) {
+                    keyhook::Act::StartHold => start(&app, Mode::Hold, now),
+                    keyhook::Act::StartHandsFree => start(&app, Mode::Toggle, now),
+                    keyhook::Act::Stop => stop(&app),
+                    keyhook::Act::Cancel => cancel(&app),
+                    keyhook::Act::Nothing => {}
+                }
+                if !pressed {
+                    last_tap = (held < MIN_HOLD && running == Some(false)).then_some(now);
+                }
+            }
+        });
+        tx
+    });
+}
+
 // ---------- model loading ----------
 
 fn load_model(app: &AppHandle, id: String) {
@@ -926,6 +1067,9 @@ fn save_settings(app: AppHandle, new: Settings) -> Result<(), String> {
     }
     if new.theme != old.theme {
         apply_theme(&app, &new.theme);
+    }
+    if new.ptt_key != old.ptt_key {
+        apply_ptt_key(&app, &new.ptt_key);
     }
     if new.threads != old.threads {
         s.engine.set_threads(settings::effective_threads(new.threads, logical(), physical()));
@@ -1879,6 +2023,8 @@ fn main() {
         .setup(move |app| {
             let theme = app.state::<Shared>().settings.lock().unwrap().theme.clone();
             apply_theme(app.handle(), &theme);
+            let key = app.state::<Shared>().settings.lock().unwrap().ptt_key.clone();
+            apply_ptt_key(app.handle(), &key);
             create_pill(app.handle())?;
             create_tray(app.handle())?;
             // Test builds only: page zoom, to check layouts at large text sizes without changing Windows' display setting.
@@ -1913,7 +2059,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy, usage_summary, insights_data, ui_state, ui_remember, dict_meta, snip_meta,
+        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy, usage_summary, insights_data, ui_state, ui_remember, dict_meta, snip_meta, open_website, pill_shape, test_pill, preview_sound,
             dict_list, dict_add, dict_update, dict_delete, dict_clear, dict_import, dict_export, snip_list, snip_add, snip_update, snip_delete, snip_clear, snip_import, snip_export, snip_preview, style_preview, recent_apps, notes_list, note_get, note_create, note_save, note_delete, notes_clear, note_export, flushed, show_in_folder, dismiss_settings_problem, open_folder, check_shortcut, pause_shortcuts, mic_test, hide_window, history_export, settings_export, settings_import_preview, settings_import_apply, backup_now, backup_check, backup_forget, restore_backup, undo_restore, delete_all_data, copy_text, pill_cancel, pill_copy, pill_original, pill_undo, pill_use_original, pill_stop])
         .run(context)
         .expect("EsyType failed to start");

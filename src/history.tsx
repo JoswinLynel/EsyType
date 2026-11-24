@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { suggestCorrection } from "./dictionary";
-import { ask, Banner, Empty, exported, Icon, listArrows, NoMatch, SearchBox, SkeletonRows, toast, toastError, useRefocus } from "./ui";
+import { ask, Banner, Empty, exported, Icon, listArrows, NoMatch, SearchBox, SkeletonRows, Switch, toast, toastError, useRefocus } from "./ui";
 import { PageTop, Wave } from "./hero";
 
 export type HistorySettings = {
@@ -126,10 +126,10 @@ export function HistoryPrivacy({ settings, save }: { settings: HistorySettings; 
   return (
     <>
         <h3>History</h3>
-        <label className="row">
-          <input type="checkbox" checked={settings.history_enabled} onChange={(e) => save({ history_enabled: e.target.checked })} />
-          <span>Save my dictations in History</span>
-        </label>
+        <div className="switch-row">
+          <span className="switch-title">Save my dictations in History</span>
+          <Switch on={settings.history_enabled} set={(on) => save({ history_enabled: on })} label="Save my dictations in History" />
+        </div>
         {!settings.history_enabled && <p className="small">History is off: new dictations are not saved anywhere. Entries already saved stay until they expire or you delete them.</p>}
         <div className="row" style={{ marginTop: 12 }}>
           <label className="field">
@@ -145,18 +145,17 @@ export function HistoryPrivacy({ settings, save }: { settings: HistorySettings; 
             </select>
           </label>
         </div>
-        <label className="row" style={{ marginTop: 12 }}>
-          <input type="checkbox" checked={settings.history_record_app} onChange={(e) => save({ history_record_app: e.target.checked })} />
-          <span>Note which program I dictated into (its file name only, such as WINWORD.EXE; never window titles, documents or web addresses)</span>
-        </label>
-        <label className="row" style={{ marginTop: 12 }}>
-          <input type="checkbox" checked={settings.history_keep_raw} onChange={async (e) => {
-            const on = e.target.checked;
+        <div className="switch-row">
+          <span><span className="switch-title">Note which program I dictated into</span><span className="small">Its file name only, such as WINWORD.EXE; never window titles, documents or web addresses.</span></span>
+          <Switch on={settings.history_record_app} set={(on) => save({ history_record_app: on })} label="Note which program I dictated into" />
+        </div>
+        <div className="switch-row">
+          <span className="switch-title">Keep the original transcription next to the inserted text</span>
+          <Switch on={settings.history_keep_raw} label="Keep the original transcription next to the inserted text" set={async (on) => {
             if (!on && !await ask({ title: "Stop keeping the original transcription?", body: "Originals already saved will be removed too; the text that was inserted, and your edits, stay.", action: "Stop keeping originals", danger: true })) return;
             save({ history_keep_raw: on });
           }} />
-          <span>Keep the original transcription next to the inserted text</span>
-        </label>
+        </div>
         <p className="small">History is stored only on this PC. Audio recordings are never saved.</p>
     </>
   );

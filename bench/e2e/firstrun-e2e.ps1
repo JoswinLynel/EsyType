@@ -45,7 +45,7 @@ function Serve([int]$Rate = 0) {
   Start-Sleep 2
 }
 function Settings { Get-Content (Join-Path $data 'settings.json') -Raw | ConvertFrom-Json }
-function Texts { (Find-All $root $CT::Text | ForEach-Object { $_.Current.Name }) -join ' ' }
+function Texts { (@(Find-All $root $CT::Text) + @(Find-All $root $CT::ListItem) | ForEach-Object { $_.Current.Name }) -join ' ' }   # list items carry their text as a name
 function Has([string]$pattern, [int]$Seconds = 5) { for ($i = 0; $i -lt $Seconds * 4; $i++) { if ((Texts) -match $pattern) { return $true }; Start-Sleep -Milliseconds 250 }; $false }
 function Click([string]$name, [switch]$Like) { Invoke-El (Find-El $root $name $CT::Button -Like:$Like); Start-Sleep -Milliseconds 700 }
 function Front { for ($k = 0; $k -lt 8 -and [Fr]::GetForegroundWindow() -ne $h; $k++) { [Fr]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 400 }
@@ -73,19 +73,23 @@ try {
   Check 'Started minimized on a new PC: the wizard is shown' ([Fr]::IsWindowVisible($h) -and (Has 'Speak\. It types\.')) ''
   Check 'New profile: no settings file written just by starting' (-not (Test-Path (Join-Path $data 'settings.json'))) ''
   Click 'Get started'
-  Check 'Privacy step: local promise and SHA-256 named' (Has 'Private by design' -and (Texts) -match 'SHA-256') ''
+  Check 'Privacy step: local promise and SHA-256 named' ((Has 'Private by design') -and (Texts) -match 'SHA-256') ''
   $hist = Find-El $root 'Keep a History of dictations on this PC' $CT::CheckBox
   Invoke-El $hist; Start-Sleep 1; $off = (Settings).history_enabled
   Invoke-El $hist; Start-Sleep 1
   Check 'History switch saves (off, then on again)' ($off -eq $false -and (Settings).history_enabled -eq $true) ''
   Check 'First save records setup as not done' ((Settings).setup_done -eq $false) ''
   Click 'Continue'
-  Check 'Model step: Base recommended, this PC shown' (Has 'Base is recommended for this PC' -and (Texts) -match 'AVX2') ''
+  Check 'Name step (Mac design): asks what to call you, can be skipped' ((Has 'What should EsyType call you\?') -and [bool](Find-El $root 'Skip' $CT::Button)) ''
+  Click 'Continue'
+  Check 'Theme step: Follow Windows, Dark or Light' ((Has 'Light or dark\?') -and [bool](Find-El $root 'Follow Windows')) ''
+  Click 'Continue'
+  Check 'Model step: Base recommended, this PC shown' ((Has 'Base is recommended for this PC') -and (Texts) -match 'AVX2') ''
   Click 'Back'
-  Check 'Back returns to Privacy' (Has 'Private by design') ''
+  Check 'Back returns to the theme step' (Has 'Light or dark\?') ''
   Click 'Continue'; Click 'Download Base'
   # server not running
-  Check 'Server not running: the reason in words and Retry' (Has 'Could not reach the download server' 10 -and [bool](Find-El $root 'Retry' $CT::Button)) ''
+  Check 'Server not running: the reason in words and Retry' ((Has 'Could not reach the download server' 10) -and [bool](Find-El $root 'Retry' $CT::Button)) ''
   # a damaged file
   Serve; Click 'Retry'
   Check 'Damaged file: rejected with a clear message' (Has 'failed its integrity check' 15) ''
@@ -95,7 +99,7 @@ try {
   Serve -Rate 6000000; Click 'Retry'
   Check 'Download shows speed and time left' (Has 'MB/s .* left' 8) ((Texts) -replace '.*(\d+%[^A-Z]*).*', '$1')
   Click 'Cancel download'
-  Check 'Cancel: says so, partial file kept for resuming' (Has 'cancelled' 5 -and (Test-Path (Join-Path $models 'ggml-base.en-q5_1.bin.partial'))) ''
+  Check 'Cancel: says so, partial file kept for resuming' ((Has 'cancelled' 5) -and (Test-Path (Join-Path $models 'ggml-base.en-q5_1.bin.partial'))) ''
   Click 'Retry'
   Check 'Download finishes and shows Verified' (Has 'Verified' 40) ''
   Check 'Retry resumed from the partial file (Range request)' ((Get-Content (Join-Path $Work 'firstrun-server.txt')) -match 'range=bytes=[1-9]') ''
@@ -108,7 +112,7 @@ try {
   # shortcut: your installed EsyType holds Ctrl+Space, so the test build cannot register it
   Check 'Shortcut step: default held elsewhere is reported' (Has 'could not be registered') ''
   Capture 'Hold to talk' 0x10, 0x41 -NoScan   # Shift+A, without scan codes
-  Check 'Capture refuses Shift+A (no scan code), with a reason' ((Texts) -match 'Shift with a key types capitals' -and -not (Find-El $root 'Use this' $CT::Button).Current.IsEnabled) ''
+  Check 'Capture refuses Shift+A (no scan code), with a reason' ((Texts) -match 'Shift with a key types capitals' -and -not (Find-El $root 'Use this' $CT::Button).Current.IsEnabled) "focus: $([System.Windows.Automation.AutomationElement]::FocusedElement.Current.Name) | $((Texts) -replace '.*(Your shortcut.{0,200}).*', '$1')"
   Keys 0x1B                            # Esc cancels
   Check 'Esc ends the capture, shortcut unchanged' (-not (Find-El $root 'Press the new Hold to talk shortcut' -Tries 3) -and (Settings).ptt -eq 'Ctrl+Space') ''
   Click 'Change Hold to talk shortcut'; Start-Sleep 23
@@ -133,12 +137,12 @@ try {
   Check 'Finish: window hidden to the tray, setup_done saved' (-not [Fr]::IsWindowVisible($h) -and (Settings).setup_done -eq $true) ''
   Quit
   Launch
-  Check 'Restart: the normal window, no wizard' ([bool](Find-El $root 'Dictation' $CT::Button -Tries 15) -and -not ((Texts) -match 'Step \d of 8')) ''
+  Check 'Restart: the normal window, no wizard' ([bool](Find-El $root 'Dictation' $CT::Button -Tries 15) -and -not ((Texts) -match 'Step \d+ of 10')) ''
   # Run setup again keeps data
   $before = Rows; $settingsBefore = Get-Content (Join-Path $data 'settings.json') -Raw
   Open-Settings $root 'About'; Click 'Run setup again'
   Check 'Run setup again opens the wizard' (Has 'Speak\. It types\.') ''
-  foreach ($i in 1..7) { Click $(if ($i -eq 1) { 'Get started' } elseif ($i -eq 3) { 'Use Base' } else { 'Continue' }) }
+  foreach ($i in 1..9) { Click $(if ($i -eq 1) { 'Get started' } elseif ($i -eq 5) { 'Use Base' } else { 'Continue' }) }
   Click 'Finish'; Start-Sleep 1
   Check 'Run setup again: History and settings kept' ((Rows) -eq $before -and $before -ge 1 -and (Get-Content (Join-Path $data 'settings.json') -Raw) -eq $settingsBefore) "rows $before -> $(Rows)"
   Quit
@@ -153,7 +157,7 @@ try {
   Check 'Existing user: settings file not rewritten by starting' ((Get-Content (Join-Path $data 'settings.json') -Raw) -eq $oldText) ''
   Quit
   Launch
-  Check 'Existing user, window opened: the normal window' ([bool](Find-El $root 'Dictation' $CT::Button -Tries 15) -and -not ((Texts) -match 'Step \d of 8')) ''
+  Check 'Existing user, window opened: the normal window' ([bool](Find-El $root 'Dictation' $CT::Button -Tries 15) -and -not ((Texts) -match 'Step \d+ of 10')) ''
   Invoke-El (Find-El $root 'Style' $CT::Button); Start-Sleep 1
   (Find-El $root 'Verbatim*' $CT::RadioButton -Like).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep 1   # any change saves
   $st = Settings

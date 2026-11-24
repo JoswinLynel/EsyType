@@ -258,21 +258,38 @@ kbd { font: 600 12px/16px var(--et-font-mono); padding: 3px 8px; border-radius: 
 }
 
 
-/* Recording pill */
-/* The pill is dark over any app. Its webview shares the main window's colour scheme (one WebView2 profile), so its colours are pinned here. */
+/* Recording pill (Mac design: RecordingPill). Frosted glass: the window is exactly the pill's size and Windows blurs what is
+   behind it (Acrylic); Windows rounds the window's corners (8 px) and the pill's corners match (owner, 24 Nov: a frosted
+   rounded rectangle, as Windows can't frost a capsule). The page adds the tint, edge and sheen. The wave bars are unchanged. */
 .pill-body { background: transparent; overflow: hidden; color-scheme: dark; color: #fff;
   --et-text-2: rgba(255, 255, 255, 0.8); --et-text-3: rgba(255, 255, 255, 0.64); --et-glass-2: rgba(255, 255, 255, 0.06); --et-amber: #f2b04a; }
-.pill { position: fixed; inset: 6px 8px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 9999px; background: rgba(0, 0, 0, 0.82); box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.22); }
-.pill.err { border-color: rgba(239, 68, 68, 0.6); }
-.pill .icon { flex: none; width: 32px; height: 32px; border-radius: 50%; border: none; color: #fff; background: var(--et-glass-2); display: grid; place-items: center; cursor: pointer; }
-.pill .icon:hover { background: rgba(255, 255, 255, 0.14); }
+.pill-wrap { position: fixed; inset: 0; display: grid; place-items: start center; }
+.pill { display: inline-flex; align-items: center; gap: 12px; height: 44px; width: max-content; max-width: 760px; padding: 0 8px 0 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; background: #121216; border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); animation: et-pill-in 260ms cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+:root[data-glass="on"] .pill { background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.03)), rgba(16, 16, 22, 0.45); }   /* dark enough for white text over a white page (AA) */
+.pill.err { border-color: rgba(242, 176, 74, 0.55); }
+.pill-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.64); }
+.pill-dot.rec { background: #ef4444; animation: et-pulse-dot 0.8s ease-in-out infinite alternate; }
+.pill-dot.ok { background: #4ade80; }
+.pill-dot.warn { background: #f2b04a; }
+.pill .icon { flex: none; width: 28px; height: 28px; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18);
+  display: grid; place-items: center; cursor: pointer; padding: 0; }
+.pill .icon:hover { background: rgba(255, 255, 255, 0.16); }
+.pill .icon[aria-label="Stop"] { color: #ef4444; }
 .pill .bars { flex: 1; height: 32px; display: flex; align-items: center; justify-content: center; gap: 3px;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); }
 .pill .bars i { width: 2px; border-radius: 2px; background: linear-gradient(to top, #27669a, #ffffff 45%, #dfa164); min-height: 2px; transition: height 60ms linear; }
-.pill .label { flex: 1; font-size: 13px; color: var(--et-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill .bars { flex: 1 1 140px; min-width: 120px; }
+.pill .label { flex: 0 1 auto; font-size: 13px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill-mode { color: var(--et-text-2); white-space: nowrap; }
 .pill .copy { flex: none; height: 32px; padding: 0 14px; border-radius: 9999px; border: none; background: #fff; color: #000; font-weight: 600; font-size: 13px; cursor: pointer; }
-.pill .time { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--et-text-3); min-width: 32px; text-align: right; }
-@media (prefers-reduced-motion: reduce) { .pill .bars i { transition: none; } }
+.pill .copy.quiet { background: rgba(255, 255, 255, 0.12); color: #fff; border: 1px solid rgba(255, 255, 255, 0.18); }
+.pill .time { font: 12px var(--et-font-mono); font-variant-numeric: tabular-nums; color: var(--et-text-2); min-width: 32px; text-align: right; }
+@keyframes et-pill-in { from { transform: scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes et-pulse-dot { from { opacity: 1; } to { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .pill .bars i { transition: none; } .pill { animation: et-fade 160ms linear both; } .pill-dot.rec { animation: none; } }
+@keyframes et-fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* Settings sub-headings and dialog lists (Milestone 3) */
 .panel h3 { font-size: 14px; font-weight: 600; margin: 24px 0 8px; }
@@ -317,6 +334,7 @@ kbd { font: 600 12px/16px var(--et-font-mono); padding: 3px 8px; border-radius: 
   .pill .bars { -webkit-mask-image: none; mask-image: none; }
   .pill .bars i { forced-color-adjust: none; background: CanvasText; }
   .pill .icon, .pill .copy { border: 1px solid ButtonText; }
+  .pill-dot { forced-color-adjust: none; background: CanvasText; }
   .dialog, .toast, .scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
@@ -422,7 +440,7 @@ kbd { font: 600 12px/16px var(--et-font-mono); padding: 3px 8px; border-radius: 
 .chart-head h2 { margin: 0 0 2px; font-size: 14px; }
 .chart-head .small { margin: 0; }
 .chart-head .seg { margin: 0; }
-.bars { margin-top: 16px; }
+.chart-card .bars { margin-top: 16px; }   /* the Insights chart only: the pill has .bars too */
 .bars-plot { position: relative; height: 180px; display: flex; align-items: flex-end; gap: 3px; border-bottom: 1px solid var(--et-border); }
 .bar { flex: 1; min-width: 2px; border-radius: 3px 3px 0 0; background: var(--et-accent); transform-origin: bottom; animation: et-grow 700ms var(--et-ease) both; }
 .avg { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--et-text-3); pointer-events: none; }
@@ -578,3 +596,33 @@ textarea.over { border-color: var(--et-red); }
 .note.on .note-title { font-weight: 600; }
 .note .note-title { font-weight: 400; }
 @media (forced-colors: active) { .style-card.on { outline: 2px solid Highlight; } }
+
+/* Settings rows (Mac design: SettingsPanel): eyebrow group labels, rows with hairlines between them */
+.settings-content .panel { padding: 18px 22px; margin-bottom: 20px; }
+.settings-content .panel > h2 { font-size: 10.5px; line-height: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--et-text-4); margin: 0 0 6px; }
+.settings-content .switch-row { padding: 14px 0; }
+.settings-content .switch-row + .switch-row, .settings-content .switch-row + .field-label { border-top: 1px solid var(--et-border); }
+.settings-content .switch-row .small { font-size: 12.5px; }
+.statement { font: italic 24px/30px var(--et-font-display); letter-spacing: -0.6px; margin: 0 0 6px; }
+.privacy-intro { margin-bottom: 20px; }
+.privacy-intro .small { margin: 0; max-width: 620px; }
+.mic-test { display: grid; gap: 4px; justify-items: start; }
+.mic-test .meter { width: 100%; max-width: 360px; margin: 8px 0 4px; }
+.about { display: grid; justify-items: start; gap: 6px; }
+.about p { margin: 0; }
+.about-icon { border-radius: 14px; }
+.acknowledgements { margin-top: 12px; max-width: 640px; }
+.acknowledgements ul { padding-left: 18px; }
+.volume { width: 200px; accent-color: var(--et-accent); }
+
+/* First-run setup (Mac design: Onboarding): a 640 px column, small progress capsules, Back left, main action right */
+.setup { padding: 28px max(48px, calc((100% - 640px) / 2)) 0; }
+.steps { gap: 6px; justify-content: center; }
+.steps span { flex: none; width: 22px; height: 4px; background: color-mix(in srgb, var(--et-text-1) 20%, transparent); }
+.steps span.on { background: var(--et-text-1); }
+.setup-nav .btn.primary { height: 34px; }
+.setup-wave { height: 90px; border-radius: 18px; overflow: hidden; color-scheme: dark;
+  background: linear-gradient(90deg, var(--et-hero-0), var(--et-hero-1), var(--et-hero-2)); background-color: var(--et-hero-1); }
+.setup-wave .wave { height: 90px; }
+/* The Acknowledgements toggle in About: a 32 px target like every other control */
+.acknowledgements summary { line-height: 32px; cursor: pointer; }

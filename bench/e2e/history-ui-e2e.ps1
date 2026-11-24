@@ -70,7 +70,7 @@ function ItemFor($text) { Items | Where-Object { $_.Current.Name -like "*$text*"
 function Btn($item, $name) { Find-El $item $name $CT::Button }
 # History's privacy switches are in Settings, Data and privacy (since Milestone 3): go there when they are not on screen.
 function PrivacyPage { if (-not (Find-El $root 'KEEP HISTORY' $CT::ComboBox -Tries 2)) { Open-Settings $root 'History & Privacy'; Start-Sleep 0.4 } }
-function Box($label) { PrivacyPage; Find-El $root "$label*" $CT::CheckBox -Like }
+function Box($label) { PrivacyPage; Find-El $root "$label*" $CT::Button -Like }   # switches (Mac design)
 function Retention($label) {
   $opt = $null
   PrivacyPage

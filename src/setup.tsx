@@ -5,8 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { confirmModel, CTRL_SPACE_NOTE, initialModel, KeyCapture, mb, ModelCards, type Progress, type Save, type Status } from "./settings";
 import { Banner, Icon, toastError } from "./ui";
+import { Wave } from "./hero";
 
-const STEPS = ["Welcome", "Privacy", "Speech model", "Download", "Microphone", "Shortcut", "Try it", "Ready"];
+const STEPS = ["Welcome", "Privacy", "Your name", "Light or dark", "Speech model", "Download", "Microphone", "Shortcut", "Try it", "Ready"];
 
 const seconds = (s: number) => (s < 90 ? `${Math.max(1, Math.round(s))} s` : `${Math.round(s / 60)} min`);
 
@@ -32,6 +33,8 @@ export function Setup({ status, save, progress, setProgress, onDone }: {
   const body = [
     <Welcome key="w" />,
     <Privacy key="p" on={s.history_enabled} days={s.history_retention_days} set={(v) => save({ history_enabled: v })} />,
+    <Name key="n" value={s.user_name} save={save} />,
+    <Theme key="th" value={s.theme} save={save} />,
     <ModelStep key="m" status={status} model={model} setModel={setModel} />,
     <Download key="d" status={status} model={model} progress={progress} setProgress={setProgress} save={save} />,
     <Microphone key="mic" status={status} save={save} />,
@@ -39,10 +42,11 @@ export function Setup({ status, save, progress, setProgress, onDone }: {
     <TryIt key="t" status={status} model={model} />,
     <Ready key="r" status={status} save={save} />,
   ][step];
-  const primary = step === 0 ? <button className="btn primary" onClick={next}>Get started</button>
-    : step === 2 ? <button className="btn primary" onClick={chooseModel}>{entry.installed ? `Use ${entry.model.name}` : `Download ${entry.model.name}`}</button>
-    : step === 6 ? <><button className="btn" onClick={next}>Skip</button><button className="btn primary" onClick={next}>Continue</button></>
-    : step === 7 ? <button className="btn primary" onClick={finish}>Finish</button>
+  const at = (name: string) => step === STEPS.indexOf(name);
+  const primary = at("Welcome") ? <button className="btn primary" onClick={next}>Get started</button>
+    : at("Speech model") ? <button className="btn primary" onClick={chooseModel}>{entry.installed ? `Use ${entry.model.name}` : `Download ${entry.model.name}`}</button>
+    : at("Your name") || at("Try it") ? <><button className="btn" onClick={next}>Skip</button><button className="btn primary" onClick={next}>Continue</button></>
+    : at("Ready") ? <button className="btn primary" onClick={finish}>Finish</button>
     : <button className="btn primary" onClick={next}>Continue</button>;
 
   return (
@@ -52,6 +56,7 @@ export function Setup({ status, save, progress, setProgress, onDone }: {
         <span className="small" aria-live="polite">Step {step + 1} of {STEPS.length}: {STEPS[step]}</span>
       </div>
       <div className="steps" aria-hidden="true">{STEPS.map((n, i) => <span key={n} className={i <= step ? "on" : ""} />)}</div>
+      {at("Welcome") && <div className="setup-wave"><Wave fade hint={30} /></div>}
       <section className="setup-body" aria-labelledby="setup-title">
         <h1 className="display" id="setup-title" tabIndex={-1} ref={heading}>{TITLES[step]}</h1>
         {body}
@@ -64,7 +69,34 @@ export function Setup({ status, save, progress, setProgress, onDone }: {
   );
 }
 
-const TITLES = ["Speak. It types.", "Private by design", "Choose a speech model", "Getting the model", "Your microphone", "Your shortcut", "Try it", "You're ready"];
+const TITLES = ["Speak. It types.", "Private by design", "What should EsyType call you?", "Light or dark?", "Choose a speech model", "Getting the model", "First, your microphone", "Your shortcut", "Try it", "You're ready"];
+
+function Name({ value, save }: { value: string; save: Save }) {
+  return (
+    <>
+      <p className="lead">EsyType greets you by your first name. It stays in EsyType's settings on this PC.</p>
+      <label className="field" style={{ maxWidth: 360 }}>
+        <span>Your name</span>
+        <input type="text" placeholder="Optional" maxLength={60} defaultValue={value} key={value} autoFocus
+          onBlur={(e) => { const v = e.target.value.trim(); if (v !== value) save({ user_name: v }); }}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+      </label>
+    </>
+  );
+}
+
+function Theme({ value, save }: { value: string; save: Save }) {
+  return (
+    <>
+      <p className="lead">Follow Windows switches with your Windows light or dark mode. You can change it any time in Settings ▸ General.</p>
+      <div className="seg" role="radiogroup" aria-label="Theme">
+        {([["system", "Follow Windows"], ["dark", "Dark"], ["light", "Light"]] as const).map(([v, name]) => (
+          <button key={v} role="radio" aria-checked={value === v} className={value === v ? "on" : ""} onClick={() => save({ theme: v })}>{name}</button>
+        ))}
+      </div>
+    </>
+  );
+}
 
 function Welcome() {
   return (
@@ -183,8 +215,8 @@ const VERDICT: Record<string, [string, string]> = {
   none: ["red", "Nothing heard. Check the microphone is connected and not muted, or choose another."],
 };
 
-function Microphone({ status, save }: { status: Status; save: Save }) {
-  const s = status.settings;
+/** Records 3 seconds from the microphone (nothing kept) and says whether it heard you. Setup and Settings. */
+export function MicTest({ mic }: { mic: string | null }) {
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0);
   const [result, setResult] = useState<{ verdict: string; fell_back: boolean } | null>(null);
@@ -195,29 +227,38 @@ function Microphone({ status, save }: { status: Status; save: Save }) {
   const test = async () => {
     setTesting(true);
     setResult(null);
-    try { setResult(await invoke("mic_test", { mic: s.mic })); } catch (e) { toastError(e); }
+    try { setResult(await invoke("mic_test", { mic })); } catch (e) { toastError(e); }
     setTesting(false);
     setLevel(0);
   };
   const v = result && VERDICT[result.verdict];
+  return (
+    <div className="mic-test">
+      <button className="btn" disabled={testing} onClick={test}>{testing ? "Listening for 3 seconds…" : "Test microphone"}</button>
+      <div className="meter" role="meter" aria-label="Microphone level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)}>
+        <div style={{ width: `${Math.round(level * 100)}%` }} />
+      </div>
+      {v && <p className="row" role="status"><span className={"chip " + v[0]}>{v[1]}</span></p>}
+      {result?.fell_back && <p className="small">The chosen microphone was not found, so the test used the Windows default.</p>}
+    </div>
+  );
+}
+
+function Microphone({ status, save }: { status: Status; save: Save }) {
+  const s = status.settings;
   return (
     <>
       <p className="lead">Choose the microphone EsyType listens to, then say a few words to test it.</p>
       <div className="row">
         <label className="field" style={{ minWidth: 280 }}>
           <span>Microphone</span>
-          <select value={s.mic ?? ""} onChange={(e) => { setResult(null); save({ mic: e.target.value || null }); }}>
+          <select value={s.mic ?? ""} onChange={(e) => save({ mic: e.target.value || null })}>
             <option value="">Windows default</option>
             {status.mics.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
-        <button className="btn" style={{ alignSelf: "end" }} disabled={testing} onClick={test}>{testing ? "Listening for 3 seconds…" : "Test microphone"}</button>
       </div>
-      <div className="meter" role="meter" aria-label="Microphone level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)}>
-        <div style={{ width: `${Math.round(level * 100)}%` }} />
-      </div>
-      {v && <p className="row" role="status"><span className={"chip " + v[0]}>{v[1]}</span></p>}
-      {result?.fell_back && <p className="small">The chosen microphone was not found, so the test used the Windows default.</p>}
+      <MicTest key={s.mic ?? ""} mic={s.mic} />
       <p className="small">The test records for 3 seconds and keeps nothing. Windows shows its microphone icon while it listens.</p>
     </>
   );

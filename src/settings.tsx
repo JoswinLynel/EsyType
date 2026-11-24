@@ -3,7 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { HistoryPrivacy, type HistorySettings } from "./history";
 import type { StyleSettings } from "./style";
-import { ask, Banner, exported, Icon, toast, toastError } from "./ui";
+import { MicTest } from "./setup";
+import iconUrl from "../src-tauri/icons/128x128.png";
+import { ask, Banner, exported, Icon, Switch, toast, toastError } from "./ui";
 
 export type Model = {
   id: string; name: string; tagline: string; bytes: number; languages: string;
@@ -11,7 +13,7 @@ export type Model = {
 };
 export type Settings = { model: string; mic: string | null; threads: number; ptt: string; toggle: string; models_dir: string | null; start_with_windows: boolean;
   text_mode: "clean" | "verbatim"; clean_fillers_extended: boolean; clean_small_numbers_as_words: boolean; dictionary_hint: boolean; builtin_vocabulary: boolean;
-  undo_shortcut: string; paste_last_shortcut: string; undo_on_pill: boolean; undo_never: string[]; setup_done: boolean | null; theme: "system" | "dark" | "light"; user_name: string; typing_wpm: number } & HistorySettings & StyleSettings;
+  undo_shortcut: string; paste_last_shortcut: string; undo_on_pill: boolean; undo_never: string[]; setup_done: boolean | null; theme: "system" | "dark" | "light"; user_name: string; typing_wpm: number; max_record_minutes: number; sound_start: boolean; sound_stop: boolean; sound_volume: number; language: string; translate: boolean; ptt_key: string; double_tap: boolean } & HistorySettings & StyleSettings;
 export type Status = {
   settings: Settings;
   models: { model: Model; installed: boolean; fit: "ok" | "ram" | "disk" }[];
@@ -53,7 +55,7 @@ const LABELS: Record<string, string> = {
   history_retention_days: "Keep history", history_record_app: "Note the program", history_keep_raw: "Keep the original transcription",
   text_mode: "Clean or Verbatim", clean_fillers_extended: "Extra fillers", clean_small_numbers_as_words: "Zero to nine as words",
   dictionary_hint: "Dictionary hint", builtin_vocabulary: "Correct common product names", style_default: "Style for other apps", style_rules: "Style rules for apps", style_custom: "Custom style",
-  undo_shortcut: "Undo shortcut", paste_last_shortcut: "Paste last shortcut", undo_on_pill: "Undo on the pill", undo_never: "Programs without Undo", theme: "Theme", user_name: "Your name", typing_wpm: "Typing speed",
+  undo_shortcut: "Undo shortcut", paste_last_shortcut: "Paste last shortcut", undo_on_pill: "Undo on the pill", undo_never: "Programs without Undo", theme: "Theme", user_name: "Your name", typing_wpm: "Typing speed", max_record_minutes: "Maximum recording length", sound_start: "Start sound", sound_stop: "Stop sound", sound_volume: "Sound volume", language: "Language", translate: "Translate to English", ptt_key: "Push to talk on one key", double_tap: "Double-tap for hands-free",
 };
 
 export function SettingsProblem({ p, onDismiss }: { p: NonNullable<Status["settings_problem"]>; onDismiss: () => void }) {
@@ -375,6 +377,12 @@ function DataTools({ status, refresh }: { status: Status; refresh: () => Promise
   );
 }
 
+/** Languages Whisper Small understands well, for Settings > Speech; "auto" detects. */
+const LANGUAGES: [string, string][] = [["en", "English"], ["auto", "Detect automatically"], ["ar", "Arabic"], ["bn", "Bengali"], ["zh", "Chinese"], ["nl", "Dutch"],
+  ["fr", "French"], ["de", "German"], ["gu", "Gujarati"], ["hi", "Hindi"], ["id", "Indonesian"], ["it", "Italian"], ["ja", "Japanese"], ["kn", "Kannada"],
+  ["ko", "Korean"], ["ml", "Malayalam"], ["mr", "Marathi"], ["pl", "Polish"], ["pt", "Portuguese"], ["pa", "Punjabi"], ["ru", "Russian"], ["es", "Spanish"],
+  ["sv", "Swedish"], ["ta", "Tamil"], ["te", "Telugu"], ["tr", "Turkish"], ["uk", "Ukrainian"], ["ur", "Urdu"], ["vi", "Vietnamese"]];
+
 /** The Settings panel's sections (Mac design system, Settings), in sidebar order. */
 export const SECTIONS = [
   ["general", "General"], ["shortcuts", "Shortcuts"], ["recording", "Recording"], ["speech", "Speech"], ["models", "Models"],
@@ -461,6 +469,37 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
         {s.mic && !status.mics.includes(s.mic) && (
           <div style={{ marginTop: 12 }}><Banner tone="amber">"{s.mic}" is not connected. EsyType will use the Windows default microphone until it is.</Banner></div>
         )}
+        <span className="field-label">Test your microphone</span>
+        <MicTest key={s.mic ?? ""} mic={s.mic} />
+        <p className="small">The test records for 3 seconds and keeps nothing.</p>
+      </section>}
+
+      {is("recording") && <section className="panel" id="set-sounds">
+        <h2>Sounds</h2>
+        <div className="switch-row">
+          <span><span className="switch-title">Start sound</span><span className="small">A soft rising tone when EsyType starts listening.</span></span>
+          <Switch on={s.sound_start} set={(on) => save({ sound_start: on })} label="Start sound" />
+        </div>
+        <div className="switch-row">
+          <span><span className="switch-title">Stop sound</span><span className="small">A soft falling tone when it stops.</span></span>
+          <Switch on={s.sound_stop} set={(on) => save({ sound_stop: on })} label="Stop sound" />
+        </div>
+        <div className="switch-row">
+          <span className="switch-title">Volume</span>
+          <input type="range" min={0} max={100} step={5} aria-label="Sound volume" defaultValue={s.sound_volume} key={s.sound_volume} className="volume"
+            onPointerUp={(e) => { const v = Number((e.target as HTMLInputElement).value); save({ sound_volume: v }); invoke("preview_sound", { start: true, volume: v }).catch(() => {}); }}
+            onKeyUp={(e) => { const v = Number((e.target as HTMLInputElement).value); save({ sound_volume: v }); }} />
+        </div>
+      </section>}
+
+      {is("recording") && <section className="panel" id="set-limits">
+        <h2>Limits</h2>
+        <div className="switch-row">
+          <span><span className="switch-title">Maximum recording length</span><span className="small">A dictation stops and is typed after this long, for example a hands-free one you forgot.</span></span>
+          <div className="seg" role="group" aria-label="Maximum recording length">
+            {[5, 10, 20, 30].map((m) => <button key={m} className={s.max_record_minutes === m ? "on" : ""} aria-pressed={s.max_record_minutes === m} onClick={() => save({ max_record_minutes: m })}>{m} min</button>)}
+          </div>
+        </div>
       </section>}
 
       {is("shortcuts") && <section className="panel" id="set-shortcuts">
@@ -475,6 +514,43 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
         <p className="small">{CTRL_SPACE_NOTE} <kbd>Esc</kbd> always cancels a dictation.</p>
       </section>}
 
+      {is("shortcuts") && <section className="panel" id="set-one-key">
+        <h2>One key</h2>
+        <div className="switch-row">
+          <span><span className="switch-title">Push to talk on one key</span><span className="small">Hold it and speak, as with the shortcut above, which keeps working too. While chosen, the key does nothing else: Right Alt can’t type characters such as € (AltGr).</span></span>
+          <select aria-label="Push to talk on one key" value={s.ptt_key} onChange={(e) => save({ ptt_key: e.target.value })}>
+            <option value="">Off</option>
+            <option value="RightCtrl">Right Ctrl</option>
+            <option value="RightAlt">Right Alt</option>
+            <option value="RightShift">Right Shift</option>
+          </select>
+        </div>
+        <div className="switch-row">
+          <span><span className="switch-title">Double-tap for hands-free</span><span className="small">Tap the key twice quickly to start; tap it once to stop and type.</span></span>
+          <Switch on={s.double_tap} set={(on) => save({ double_tap: on })} label="Double-tap for hands-free" />
+        </div>
+      </section>}
+
+      {is("speech") && <section className="panel" id="set-language">
+        <h2>Language</h2>
+        {(() => {
+          const multilingual = status.models.find((m) => m.model.id === s.model)?.model.languages !== "English";
+          return <>
+            <div className="switch-row">
+              <span><span className="switch-title">Language you speak</span><span className="small">{multilingual ? "Detect automatically works out the language each time; choosing it is a little faster and surer." : "Tiny and Base understand English only. Choose Small in Models for other languages."}</span></span>
+              <select aria-label="Language" value={multilingual ? s.language : "en"} disabled={!multilingual} onChange={(e) => save({ language: e.target.value })}>
+                {LANGUAGES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+              </select>
+            </div>
+            <div className="switch-row">
+              <span><span className="switch-title">Translate to English</span><span className="small">Speak another language and EsyType types it in English.</span></span>
+              <Switch on={multilingual && s.translate} set={(on) => { if (multilingual) save({ translate: on }); }} label="Translate to English" />
+            </div>
+            <p className="small">Clean, Style and your Dictionary’s spelling rules are written for English, so other languages are typed as heard.</p>
+          </>;
+        })()}
+      </section>}
+
       {is("speech") && <section className="panel" id="set-text">
         <h2>Text</h2>
         <p className="small">Clean or Verbatim, Clean’s options and per-app style are on the Style page.</p>
@@ -482,10 +558,10 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
 
       {is("shortcuts") && <section className="panel" id="set-undo">
         <h2>Undo</h2>
-        <label className="row">
-          <input type="checkbox" checked={s.undo_on_pill} onChange={(e) => save({ undo_on_pill: e.target.checked })} />
-          <span>Show Undo on the pill after a dictation</span>
-        </label>
+        <div className="switch-row">
+          <span className="switch-title">Show Undo on the pill after a dictation</span>
+          <Switch on={s.undo_on_pill} set={(on) => save({ undo_on_pill: on })} label="Show Undo on the pill after a dictation" />
+        </div>
         <p className="small">Undo sends the app's own Ctrl+Z once, and only for the last dictation, within 60 seconds, in the same window, and if you have not typed or clicked since; otherwise EsyType tells you why it did nothing. It is never offered in consoles and terminals.</p>
         <div className="row">
           <label className="field" style={{ flex: 1 }}>
@@ -521,10 +597,10 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
 
       {is("general") && <section className="panel" id="set-startup">
         <h2>Startup</h2>
-        <label className="row">
-          <input type="checkbox" checked={s.start_with_windows} onChange={(e) => save({ start_with_windows: e.target.checked })} />
-          <span>Start EsyType when Windows starts (it waits in the system tray)</span>
-        </label>
+        <div className="switch-row">
+          <span><span className="switch-title">Open at login</span><span className="small">EsyType starts with Windows and waits in the system tray.</span></span>
+          <Switch on={s.start_with_windows} set={(on) => save({ start_with_windows: on })} label="Start EsyType when Windows starts" />
+        </div>
       </section>}
 
       {is("speech") && <section className="panel" id="set-performance">
@@ -566,6 +642,11 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
         <p className="small">Now: {status.models_dir}. Downloaded models are moved and checked before the old copies are deleted; future downloads go here. {Math.round(hw.free_disk_mb / 1024)} GB free on this drive.</p>
       </section>}
 
+      {is("privacy") && <div className="privacy-intro">
+        <p className="statement">Nothing leaves this PC.</p>
+        <p className="small">No account, no cloud, no analytics. Your voice is turned into text on this PC and never recorded to disk; History, Dictionary, Snippets and notes stay in EsyType’s folder until you delete them.</p>
+      </div>}
+
       {is("privacy") && <section className="panel" id="set-privacy">
         <h2>Data and privacy</h2>
         <p className="small"><Icon name="lock" size={14} /> Dictation runs on this PC. Your voice is never recorded to disk, and nothing you say or write is sent anywhere.</p>
@@ -577,12 +658,30 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
         <DataTools status={status} refresh={refresh} />
       </section>}
 
-      {is("about") && <section className="panel" id="set-about">
-        <h2>About</h2>
-        <p><span className="wordmark">EsyType.</span> <span className="muted">by EsyAI · version {status.version}</span></p>
+      {is("about") && <section className="panel about" id="set-about">
+        <img src={iconUrl} width={60} height={60} alt="" className="about-icon" />
+        <p className="empty-title">EsyType</p>
+        <p className="small">Version {status.version}</p>
+        <p>Private voice typing by EsyAI. Make Life Esy.</p>
+        <p><a href="#" onClick={(e) => { e.preventDefault(); invoke("open_website").catch(toastError); }}>esyai.co.uk</a></p>
         <p className="small">Runs on this PC. The only internet use is downloading the speech model you choose, from a fixed address, checked before use. No account.</p>
         <button className="btn" onClick={openSetup}>Run setup again</button>
         <p className="small">Walks through the first-run steps with your current choices. Nothing is deleted or reset.</p>
+        <details className="small acknowledgements">
+          <summary>Acknowledgements</summary>
+          <p>EsyType is built with open-source software. Thank you to their authors.</p>
+          <ul>
+            <li>Tauri: MIT or Apache-2.0</li>
+            <li>whisper.cpp (through whisper-rs): MIT</li>
+            <li>Whisper speech models by OpenAI: MIT</li>
+            <li>React: MIT</li>
+            <li>cpal (audio): Apache-2.0</li>
+            <li>SQLite (through rusqlite): public domain; rusqlite: MIT</li>
+            <li>windows-rs, serde, reqwest, arboard, sysinfo, sha2: MIT or Apache-2.0</li>
+          </ul>
+          <p>MIT License: Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+          <p>Apache-2.0: Licensed under the Apache License, Version 2.0; you may not use these files except in compliance with the License. Software distributed under the License is distributed on an “AS IS” basis, without warranties or conditions of any kind.</p>
+        </details>
       </section>}
     </>
   );

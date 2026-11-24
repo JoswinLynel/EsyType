@@ -62,9 +62,9 @@ function Go($page) { Close-Settings $root; Invoke-El (Find-El $root $page $CT::B
 function Texts { Find-All $root $CT::Text | ForEach-Object { $_.Current.Name } }
 function Has([string]$like) { [bool]((Texts) | Where-Object { $_ -like $like }) }
 # The page's focused element: its accessible name (or text), then @ and its row in a list (-1 outside one).
-function Active { Js "(()=>{const a=document.activeElement;const li=a.closest('ul.entries > li');return (a.getAttribute('aria-label')||a.textContent.trim().slice(0,40))+'@'+(li?[...li.parentElement.children].indexOf(li):-1)})()" }
+function Active { Js "(()=>{const a=document.activeElement;const rows=[...document.querySelectorAll('ul.entries > li, ul.days > li.hrow')];return (a.getAttribute('aria-label')||a.textContent.trim().slice(0,40))+'@'+rows.indexOf(a.closest('li'))})()" }
 # JavaScript for elements: a row's button by its text; an element by its accessible name; the empty state's button.
-function RowBtn([int]$i, [string]$name) { "[...[...document.querySelectorAll('ul.entries > li')][$i].querySelectorAll('button')].find(b=>b.textContent==='$name'||b.getAttribute('aria-label')==='$name')" }   # icon buttons are named by aria-label
+function RowBtn([int]$i, [string]$name) { "[...[...document.querySelectorAll('ul.entries > li, ul.days > li.hrow')][$i].querySelectorAll('button')].find(b=>b.textContent==='$name'||b.getAttribute('aria-label')==='$name')" }   # icon buttons are named by aria-label
 function Named([string]$label) { "[...document.querySelectorAll('[aria-label]')].find(e=>e.getAttribute('aria-label')==='$label')" }
 $emptyBtn = "document.querySelector('.empty button')"
 # Keyboard onto an element (window in front first), then keys.

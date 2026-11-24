@@ -6,7 +6,7 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 enum Job {
     Load { path: PathBuf, threads: i32, done: mpsc::Sender<Result<(), String>> },
     Threads(i32),
-    Transcribe { pcm: Vec<f32>, prompt: String, done: mpsc::Sender<Result<String, String>> },
+    Transcribe { pcm: Vec<f32>, prompt: String, lang: String, translate: bool, done: mpsc::Sender<Result<(String, String), String>> },
 }
 
 #[derive(Clone)]
@@ -33,7 +33,7 @@ impl Engine {
                         Job::Load { path, threads, done } => {
                             loaded = None; // free the old model before loading the new one
                             let r = load(&path).map(|(ctx, mut state)| {
-                                let _ = run(&mut state, &vec![0.0; 16000], threads, ""); // warm-up pass
+                                let _ = run(&mut state, &vec![0.0; 16000], threads, "", "en", false); // warm-up pass
                                 loaded = Some((ctx, state, threads));
                             });
                             let _ = done.send(r);
@@ -43,11 +43,11 @@ impl Engine {
                                 l.2 = t;
                             }
                         }
-                        Job::Transcribe { pcm, prompt, done } => {
+                        Job::Transcribe { pcm, prompt, lang, translate, done } => {
                             let r = match loaded.as_mut() {
                                 Some((_, state, threads)) => match speech_only(vad.as_mut(), &pcm) {
-                                    Some(speech) => run(state, speech, *threads, &prompt).map(|t| clean(&t)),
-                                    None => Ok(String::new()), // no speech: nothing to transcribe or type
+                                    Some(speech) => run(state, speech, *threads, &prompt, &lang, translate).map(|(t, l)| (clean(&t), l)),
+                                    None => Ok((String::new(), lang.clone())), // no speech: nothing to transcribe or type
                                 },
                                 None => Err("No speech model is loaded yet.".into()),
                             };
@@ -71,10 +71,11 @@ impl Engine {
         let _ = self.tx.send(Job::Threads(threads));
     }
 
-    /// Blocks until done; call from a background thread. `prompt`: the Dictionary hint ("" for none).
-    pub fn transcribe(&self, pcm: Vec<f32>, prompt: &str) -> Result<String, String> {
+    /// Blocks until done; call from a background thread. `prompt`: the Dictionary hint ("" for none). `lang`: "en",
+    /// "auto" or a language code; `translate`: write it in English. Returns the text and the language heard.
+    pub fn transcribe(&self, pcm: Vec<f32>, prompt: &str, lang: &str, translate: bool) -> Result<(String, String), String> {
         let (done, rx) = mpsc::channel();
-        self.tx.send(Job::Transcribe { pcm, prompt: prompt.to_string(), done }).map_err(|e| e.to_string())?;
+        self.tx.send(Job::Transcribe { pcm, prompt: prompt.to_string(), lang: lang.to_string(), translate, done }).map_err(|e| e.to_string())?;
         rx.recv().map_err(|e| e.to_string())?
     }
 }
@@ -116,11 +117,11 @@ fn load(path: &PathBuf) -> Result<(WhisperContext, WhisperState), String> {
     Ok((ctx, state))
 }
 
-fn run(state: &mut WhisperState, pcm: &[f32], threads: i32, prompt: &str) -> Result<String, String> {
+fn run(state: &mut WhisperState, pcm: &[f32], threads: i32, prompt: &str, lang: &str, translate: bool) -> Result<(String, String), String> {
     let mut p = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     p.set_n_threads(threads);
-    // shortcut: language fixed to English for all three models; add a language setting for multilingual Small.
-    p.set_language(Some("en"));
+    p.set_language(Some(lang)); // "auto" detects; "detect_language" would stop after detecting
+    p.set_translate(translate);
     p.set_no_context(true);
     p.set_suppress_blank(true);
     p.set_suppress_nst(true); // no "[music]"-style non-speech tokens
@@ -133,7 +134,8 @@ fn run(state: &mut WhisperState, pcm: &[f32], threads: i32, prompt: &str) -> Res
     p.set_print_timestamps(false);
     state.full(p, pcm).map_err(|e| format!("Transcription failed: {e}"))?;
     let text: String = state.as_iter().map(|s| s.to_str_lossy().map(|c| c.into_owned()).unwrap_or_default()).collect();
-    Ok(text.trim().to_string())
+    let heard = whisper_rs::get_lang_str(state.full_lang_id_from_state()).unwrap_or(lang).to_string();
+    Ok((text.trim().to_string(), heard))
 }
 
 /// Speech runs below normal priority so the app being dictated into stays responsive.

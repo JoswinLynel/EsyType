@@ -4,7 +4,32 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
-### 2026-11-24: Mac design, milestone D, the list pages (test build, not released; key-pressing suites pending)
+### 2026-11-24: Mac design, milestones E and F, and the frosted pill (test build, not released)
+
+**Added**
+
+- **Settings:**
+  - Mac-style rows in every section.
+  - **Shortcuts:** push to talk on one key (Right Ctrl, Right Alt or Right Shift). Hold to dictate; double-tap for hands-free, tap to stop.
+  - **Recording:** start and stop sounds with volume (off by default); a maximum recording length of 5, 10, 20 or 30 minutes.
+  - **Speech:** language choice and Translate to English (Small model only).
+  - **About:** a new About page.
+- **The recording pill:** a frosted, rounded glass look. The wave is unchanged and centred.
+- **First-run setup:** ten steps, including "What should EsyType call you?" and "Light or dark?", with progress capsules and the wave on Welcome.
+
+**Fixed**
+
+- A dark box drawn around the recording pill (0.4.0).
+- The Acknowledgements toggle in About was smaller than the 32 px minimum.
+
+**Tests**
+
+- Unit 68/68.
+- New keys suite 11/11. Every end-to-end suite passes on an idle PC, including those milestone D left pending.
+- Dictation time unchanged: 2.1 s against 2.1 s.
+- Record: `docs/testing/2026-11-24-mac-design-e-f.md`.
+
+### 2026-11-24: Mac design, milestone D, the list pages (test build, not released; key-pressing suites passed later, see E and F)
 
 **Added**
 

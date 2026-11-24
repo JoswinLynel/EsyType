@@ -105,11 +105,11 @@ try {
 
   # 7. Delete asks first; Cancel keeps, OK removes; Delete all
   Invoke-El (Find-El $root 'Delete' $CT::Button); $m = Answer-Dialog $root 'Cancel'; Start-Sleep 0.8
-  Check 'Delete asks; Cancel keeps the note' ((Notes).Count -eq 2 -and $m -match 'cannot be undone') "'$m'"
+  Check 'Delete asks; Cancel keeps the note' ((Notes).Count -eq 2 -and $m -match 'can.t be undone|cannot be undone') "'$m'"
   Invoke-El (Find-El $root 'Delete' $CT::Button); [void](Answer-Dialog $root 'Delete'); Start-Sleep 1
   Check 'Delete with OK removes it' ((Notes).Count -eq 1) "notes=$((Notes).Count)"
   Invoke-El (Find-El $root 'Delete all notes' $CT::Button); $m = Answer-Dialog $root 'Delete all notes'; Start-Sleep 1
-  Check 'Delete all asks, then removes every note' ((Notes).Count -eq 0 -and $m -match 'cannot be undone') "'$m'"
+  Check 'Delete all asks, then removes every note' ((Notes).Count -eq 0 -and $m -match 'can.t be undone|cannot be undone') "'$m'"
   Stop-Process -Id $app.Id -Force; Start-Sleep 2
 
   # 8. Broken database: warning, writing still possible

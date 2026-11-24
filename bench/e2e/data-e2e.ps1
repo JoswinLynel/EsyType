@@ -89,7 +89,7 @@ try {
   Page 'Settings'
   $t = Texts
   Check 'Data and privacy: sizes shown' ($t -match 'Speech models \S\s+60 MB' -and $t -match 'notes \S\s+\d+ KB') ''
-  Check 'Data and privacy: History switches moved here' ([bool](Find-El $root 'Save my dictations*' $CT::CheckBox -Like)) ''
+  Check 'Data and privacy: History switches moved here' ([bool](Find-El $root 'Save my dictations*' $CT::Button -Like)) ''
   Check 'Data and privacy: internet use names the one address' ($t -match 'huggingface\.co/ggerganov/whisper\.cpp \(version 5359861\)') ''
   # ---- settings export and import ----
   Click 'Export settings'

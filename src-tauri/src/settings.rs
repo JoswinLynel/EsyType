@@ -56,6 +56,20 @@ pub struct Settings {
     pub user_name: String,
     /// Your typing speed in words a minute (10-150), for Insights' Time saved.
     pub typing_wpm: u32,
+    /// A dictation stops and is transcribed after this many minutes (5, 10, 20 or 30), e.g. a forgotten hands-free one.
+    pub max_record_minutes: u32,
+    /// A soft tone when recording starts / stops (off by default), at this volume (0-100).
+    pub sound_start: bool,
+    pub sound_stop: bool,
+    pub sound_volume: u32,
+    /// "en", "auto" (detect) or a language code. Only the multilingual Small model uses it; Tiny and Base are English.
+    pub language: String,
+    /// Write other languages in English (Small only).
+    pub translate: bool,
+    /// Push to talk on one key: "RightCtrl", "RightAlt", "RightShift", or "" (off). Works alongside `ptt`.
+    pub ptt_key: String,
+    /// Two quick taps of that key start hands-free; one tap stops it.
+    pub double_tap: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -141,6 +155,14 @@ impl Default for Settings {
             theme: "system".into(),
             user_name: String::new(),
             typing_wpm: 40,
+            max_record_minutes: 10,
+            sound_start: false,
+            sound_stop: false,
+            sound_volume: 60,
+            language: "en".into(),
+            translate: false,
+            ptt_key: String::new(),
+            double_tap: true,
         }
     }
 }
@@ -483,6 +505,9 @@ mod tests {
         assert_eq!(s.style_default, "standard");
         assert_eq!(s.theme, "system", "older settings files follow Windows' light or dark mode");
         assert_eq!(s.user_name, "", "older settings files have no name");
+        assert_eq!(s.max_record_minutes, 10, "older settings files stop a dictation after 10 minutes");
+        assert!(!s.sound_start && !s.sound_stop && s.language == "en" && !s.translate, "no sounds, English, as before");
+        assert_eq!(s.ptt_key, "", "no single-key push to talk unless chosen");
         assert_eq!(s.style_name(Some("outlook.exe")), "professional", "rules match any case");
         assert_eq!(s.style_name(Some("Slack.exe")), "casual");
         assert_eq!(s.style_name(Some("notepad.exe")), "standard");

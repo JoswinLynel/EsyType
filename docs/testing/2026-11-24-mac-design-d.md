@@ -69,6 +69,9 @@ Test build, own profiles; keys only into the test build's own windows.
 | Clean / Try it / History / slow paste / Undo / insertion / spacing (Word, Chrome) | **10/10, 2/2, 19/19, 21/21, 13/13, 18/18, 14/14** |
 
 ### Still to run on an idle PC
+
+**Update, later on 24 Nov:** all four passed on an idle PC (`2026-11-24-mac-design-e-f.md`). Polish's stop was the test: the step was History's Edit button, and the test looked for rows in the old History list.
+
 These suites press real keys and refuse to unless the test build's own window is in front. On 24 Nov evening the owner was using the PC, so they stopped before typing anywhere:
 - **Polish:** 19 of 19 checks passed before it stopped, three times at the same step: putting the keyboard on a Dictionary row's Edit button. The same step succeeds when driven directly in the page, so it is not yet known whether this is a fault or the busy PC.
 - **Scratchpad:** 8 checks passed in one run; dictation into a note worked.

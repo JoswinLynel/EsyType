@@ -51,9 +51,9 @@ try {
   }
   if ($Setup) {
     $n = 0
-    foreach ($b in 'Get started', 'Continue', 'Download Base', 'Continue', 'Continue', 'Continue', 'Continue', '') {
+    foreach ($b in 'Get started', 'Continue', 'Continue', 'Continue', 'Download Base', 'Continue', 'Continue', 'Continue', 'Continue', '') {
       $n++; Snap "setup-$n"
-      if ($n -eq 4) { Start-Sleep 20; Snap 'setup-4-verified' }
+      if ($n -eq 6) { Start-Sleep 20; Snap 'setup-6-verified' }
       if ($b) { Invoke-El (Find-El $root $b $CT::Button); Start-Sleep 2.5 }
     }
     "screenshots in $Out ($tag-setup-*.png)"; return
