@@ -3,7 +3,7 @@
 # Uses its own empty test profile, so the empty states show (-Seeded: filled lists). Nothing else on screen is touched.
 # -Setup: the eight first-run steps instead, on a profile with no model (served by model-server.py from the files
 # already in firstrun-serve, so nothing comes from the internet).
-param([double]$Zoom = 1, [int]$Width = 980, [int]$Height = 720, [string]$Out = "D:\AI Projects\Tools\e2e\shots", [switch]$Setup, [switch]$Seeded, [int]$Port = 8767, [ValidateSet('system', 'dark', 'light')][string]$Theme = 'system',
+param([double]$Zoom = 1, [int]$Width = 980, [int]$Height = 720, [string]$Out = "D:\AI Projects\Tools\e2e\shots", [switch]$Setup, [switch]$Seeded, [switch]$Demo, [int]$Port = 8767, [ValidateSet('system', 'dark', 'light')][string]$Theme = 'system',
       [string]$Exe = "D:\AI Projects\Tools\e2e\bin\esytype-e2e.exe", [string]$Work = "D:\AI Projects\Tools\e2e")
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'uia.ps1')
@@ -16,6 +16,7 @@ public static class Shot {
   [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool r);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int size);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 }
 "@
@@ -28,23 +29,28 @@ if ($Setup) {
   $server = Start-Process python -ArgumentList '-I', "`"$(Join-Path $PSScriptRoot 'model-server.py')`"", "`"$(Join-Path $Work 'firstrun-serve')`"", $Port, '--rate', 4000000 -PassThru -WindowStyle Hidden
   $env:ESYTYPE_MODEL_BASE_URL = "http://127.0.0.1:$Port"
 } else {
-[ordered]@{ model = 'base'; ptt = 'Ctrl+F8'; toggle = 'Ctrl+F7'; undo_shortcut = 'Ctrl+F9'; paste_last_shortcut = 'Ctrl+F10'; models_dir = (Join-Path $Work 'restart-models'); start_with_windows = $false; theme = $Theme } |
+$(if ($Demo) {   # the README shows the real default shortcuts: the installed EsyType must not be running (it holds Ctrl+Space)
+  [ordered]@{ model = 'base'; user_name = 'Alex Morgan'; models_dir = (Join-Path $Work 'restart-models'); start_with_windows = $false; theme = $Theme } } else {
+  [ordered]@{ model = 'base'; ptt = 'Ctrl+F8'; toggle = 'Ctrl+F7'; undo_shortcut = 'Ctrl+F9'; paste_last_shortcut = 'Ctrl+F10'; models_dir = (Join-Path $Work 'restart-models'); start_with_windows = $false; theme = $Theme } }) |
   ConvertTo-Json | Set-Content (Join-Path $data 'settings.json') -Encoding ascii
   # -Seeded: filled lists, from the profile polish-e2e.ps1 leaves behind
   if ($Seeded) { Copy-Item (Join-Path $Work 'localappdata-polish\EsyAI\EsyType\esytype.db') $data }
 }
 $env:LOCALAPPDATA = $lad; $env:ESYTYPE_TEST_ZOOM = "$Zoom"
-$tag = "z$($Zoom)-w$Width" + $(if ($Seeded) { '-seeded' } else { '' }) + $(if ($Theme -ne 'system') { "-$Theme" } else { '' })
+$tag = "z$($Zoom)-w$Width" + $(if ($Seeded) { '-seeded' } elseif ($Demo) { '-demo' } else { '' }) + $(if ($Theme -ne 'system') { "-$Theme" } else { '' })
 $app = Start-Process $Exe -PassThru -RedirectStandardError (Join-Path $Work 'shots-trace.txt'); Start-Sleep 9
 # sample usage totals for Insights, once EsyType has brought the database up to date
 if ($Seeded -and -not $Setup) { python -I (Join-Path $PSScriptRoot 'data-seed.py') insights (Join-Path $data 'esytype.db') | Out-Null }
+# -Demo: the README's demo content instead (data-seed.py readme)
+if ($Demo -and -not $Setup) { python -I (Join-Path $PSScriptRoot 'data-seed.py') readme (Join-Path $data 'esytype.db') | Out-Null }
 try {
   $root = Get-AppWindow $app.Id 'EsyType'; $h = [IntPtr]$root.Current.NativeWindowHandle
   $scale = [Shot]::GetDpiForWindow($h) / 96.0   # -Width and -Height are in the window's own (logical) pixels
   [Shot]::MoveWindow($h, 40, 40, [int]($Width * $scale), [int]($Height * $scale), $true) | Out-Null; Start-Sleep 1
   function Snap($name) {
     [Shot]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 700
-    $r = New-Object Shot+RECT; [Shot]::GetWindowRect($h, [ref]$r) | Out-Null
+    $r = New-Object Shot+RECT; [void][Shot]::DwmGetWindowAttribute($h, 9, [ref]$r, 16)   # the visible frame, without the invisible resize border (and what is behind it)
+    $r.L += 1; $r.T += 2; $r.R -= 1; $r.B -= 1   # and without the 1 px border, which can let the desktop show through
     $bmp = New-Object Drawing.Bitmap ($r.R - $r.L), ($r.B - $r.T)
     [Drawing.Graphics]::FromImage($bmp).CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
     $bmp.Save((Join-Path $Out "$tag-$name.png"), [Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
@@ -58,6 +64,7 @@ try {
     }
     "screenshots in $Out ($tag-setup-*.png)"; return
   }
+  if ($Demo) { Invoke-El (Find-El $root 'History' $CT::Button); Start-Sleep 1 }   # leave Dictation so it reloads with the demo content
   foreach ($p in 'Dictation', 'EsyMeet*', 'Insights', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad') {
     Invoke-El (Find-El $root $p $CT::Button -Like); Start-Sleep 1.2; Snap ($p.TrimEnd('*').ToLower())
   }

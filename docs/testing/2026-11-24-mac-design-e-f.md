@@ -101,4 +101,4 @@ No regression. The language choice adds nothing for English: Whisper is told "en
 
 **Download:** `download/EsyType_0.5.0_x64-setup.exe`, SHA-256 `2945fe182dd4046077fa5c7fbc032f41c13bdb0fcb324ae89f7da1686544cba2`. Earlier installers stay in `download/`.
 
-**Not yet seen by you:** the new pill and pages on your own dictations. The README's screenshots still show the old design.
+**Not yet seen by you:** the new pill and pages on your own dictations. The README screenshots were retaken in the new design afterwards, with demo content.

@@ -49,11 +49,15 @@ EsyType lives in the system tray and can start with Windows. English by default;
 | **Speech models** | Tiny (low-resource PCs), Base (balanced, the default) or Small (most accurate). EsyType says which ones fit your PC. Runs on an ordinary CPU; no graphics card needed. |
 
 <table>
-<tr><td><img src="docs/images/history.png" alt="History page"></td><td><img src="docs/images/dictionary.png" alt="Dictionary page with built-in product names"></td></tr>
-<tr><td align="center">History: every dictation, kept on your PC</td><td align="center">Dictionary and the built-in product names</td></tr>
-<tr><td><img src="docs/images/style.png" alt="Style page"></td><td><img src="docs/images/settings.png" alt="Settings page"></td></tr>
-<tr><td align="center">Style: how text is finished in each app</td><td align="center">Settings: speech model, microphone, shortcuts</td></tr>
+<tr><td><img src="docs/images/insights.png" alt="Insights page"></td><td><img src="docs/images/history.png" alt="History page"></td></tr>
+<tr><td align="center">Insights: words per day, streaks and time saved</td><td align="center">History: every dictation, kept on your PC</td></tr>
+<tr><td><img src="docs/images/dictionary.png" alt="Dictionary page"></td><td><img src="docs/images/style.png" alt="Style page"></td></tr>
+<tr><td align="center">Dictionary: names and words spelled your way</td><td align="center">Style: how text is finished in each app</td></tr>
+<tr><td colspan="2"><img src="docs/images/settings.png" alt="Settings, Shortcuts"></td></tr>
+<tr><td colspan="2" align="center">Settings: shortcuts, including push to talk on one key</td></tr>
 </table>
+
+<sub>Screenshots show demo content, not real dictations.</sub>
 
 ## Privacy
 
