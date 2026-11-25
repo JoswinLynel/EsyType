@@ -17,7 +17,7 @@ $Port = 9337; $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-p
 function Launch {
   $script:app = Start-Process $Exe -PassThru -RedirectStandardError (Join-Path $Work 'insights-trace.txt'); Start-Sleep 9
   $script:root = Get-AppWindow $app.Id 'EsyType'
-  $t = @((Invoke-RestMethod "http://127.0.0.1:$Port/json") | Where-Object { $_.type -eq 'page' -and $_.url -notmatch 'pill' })[0]
+  $t = @((Invoke-RestMethod "http://127.0.0.1:$Port/json") | Where-Object { $_.type -eq 'page' -and $_.url -notmatch 'pill|prompt' })[0]
   $script:ws = New-Object System.Net.WebSockets.ClientWebSocket; $ws.ConnectAsync([Uri]$t.webSocketDebuggerUrl, [Threading.CancellationToken]::None).Wait()
 }
 function Quit { if ($app) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue; Start-Sleep 2 } }

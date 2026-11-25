@@ -4,6 +4,24 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-25: EsyMeet 8.2, meeting detection and the "Meeting detected" prompt (test build; released with 8.3)
+
+- **When it prompts:** a meeting app or browser that holds the microphone for 5 s gets a capsule prompt at the top of the screen, "Meeting detected · <app>", with Start transcription and Not now. It never records by itself and never takes the keyboard.
+- **The rules:**
+  - Not now holds for the call.
+  - An unanswered prompt fades after 30 s.
+  - The tray offers "Start meeting transcription" during a call.
+- **Settings ▸ Meetings:** Detect meetings (on), a switch per app (Discord off), and what EsyType reads.
+- **Detection:** asks Windows which programs have an active microphone stream (audio sessions), every 2 s, and counts only the meeting allow-list, never EsyType.
+  - The plan named the registry record, which had not been updated on this PC since September.
+- **Pill and prompt:** now raised above other always-on-top windows when shown.
+- **Tests:**
+  - Unit 70/70; new meeting suite 18/18; theme 67/67; full regression passed.
+  - Watcher about 0.24% of one core.
+  - Dictation unchanged: 2.9 s against 3.0 s, on battery.
+  - Real calls not yet tested.
+- Record: `docs/testing/2026-11-25-esymeet-8.2-meeting-detection.md`.
+
 ### 2026-11-25: EsyMeet milestone 8.1, dual-audio capture (test tools only; the app is unchanged)
 
 - **New capture module, not yet in the app:** `src-tauri/src/capture.rs` records your microphone and the PC's sound (WASAPI loopback) on one timeline, placed by Windows' own capture timestamps. It is driven by the probe `bench/meet-capture`.

@@ -11,6 +11,7 @@ macro_rules! trace {
 mod audio;
 mod sound;
 mod keyhook;
+mod meeting_detect;
 mod clean;
 mod dictionary;
 mod vocabulary;
@@ -90,6 +91,19 @@ struct Shared {
     tray_recording: AtomicBool,
     /// Bumped each time the pill shows a new state, so a hide timer from an earlier state does nothing.
     pill_gen: AtomicU64,
+    /// EsyMeet (plan 8.2): the meeting detector and what the prompt shows.
+    meet: Mutex<MeetPrompt>,
+    tray_meet: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
+}
+
+/// The "Meeting detected" prompt: the rules, the app it is showing for (None: hidden), a counter so an old fade timer
+/// does nothing, and whether the tray currently offers "Start meeting transcription".
+#[derive(Default)]
+struct MeetPrompt {
+    detector: meeting_detect::Detector,
+    showing: Option<&'static str>,
+    gen: u64,
+    tray_on: bool,
 }
 
 fn escape() -> Shortcut {
@@ -148,15 +162,8 @@ fn pill(app: &AppHandle, state: &str, message: &str) {
     }
     if let Some(w) = app.get_webview_window("pill") {
         let _ = w.emit("pill", json!({ "state": state, "message": message }));
-        // Shown without activating (so the caret stays in the user's document) and hidden with the same raw
-        // Win32 call: Tauri does not know the window was shown, so its own hide() would do nothing.
-        if let Ok(h) = w.hwnd() {
-            use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE, SW_SHOWNOACTIVATE};
-            let cmd = if state == "hidden" { SW_HIDE } else { SW_SHOWNOACTIVATE };
-            unsafe {
-                let _ = ShowWindow(windows::Win32::Foundation::HWND(h.0 as _), cmd);
-            }
-        }
+        // Shown without activating, so the caret stays in the user's document.
+        show_quietly(&w, state != "hidden");
     }
 }
 
@@ -271,8 +278,16 @@ fn create_pill(app: &AppHandle) -> tauri::Result<()> {
         .focused(false) // never take focus, not even when Windows starts EsyType at login
         .visible(false)
         .build()?;
-    // Clicking (or pressing through accessibility tools) a button on the pill must not activate it: the keys that
-    // Undo sends belong to the window the user dictated into.
+    never_activate(&win);
+    // No Acrylic: Windows draws it only in a rectangle, and the owner prefers the capsule with a light frost (25 Nov).
+    place_pill(&win, w, h);
+    Ok(())
+}
+
+/// For the pill and the meeting prompt: clicking (or pressing through accessibility tools) one of their buttons must
+/// not activate them, so the caret and keys stay in the user's app (Undo's keys belong to the window dictated into).
+/// They are capsules on transparent windows, so Windows must not round (or outline) the window's corners itself.
+fn never_activate(win: &tauri::WebviewWindow) {
     if let Ok(h) = win.hwnd() {
         use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND};
         use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE};
@@ -280,14 +295,174 @@ fn create_pill(app: &AppHandle) -> tauri::Result<()> {
         unsafe {
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE.0 as isize);
-            // A capsule on a transparent window: Windows must not round (or outline) the window's corners itself.
             let round = DWMWCP_DONOTROUND;
             let _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const _ as *const core::ffi::c_void, std::mem::size_of_val(&round) as u32);
         }
     }
-    // No Acrylic: Windows draws it only in a rectangle, and the owner prefers the capsule with a light frost (25 Nov).
-    place_pill(&win, w, h);
+}
+
+/// Shows or hides a window without activating it. Tauri does not know about a window shown this way, so its own hide()
+/// would do nothing: both go through Windows directly. Shown, it is also raised to the top of the always-on-top windows
+/// (still without activating): otherwise another always-on-top window raised since, such as a meeting app's small call
+/// window, would cover it (seen with a test window, 25 Nov).
+fn show_quietly(win: &tauri::WebviewWindow, show: bool) {
+    if let Ok(h) = win.hwnd() {
+        use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE};
+        let hwnd = windows::Win32::Foundation::HWND(h.0 as _);
+        unsafe {
+            if show {
+                let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            } else {
+                let _ = ShowWindow(hwnd, SW_HIDE);
+            }
+        }
+    }
+}
+
+// ---------- EsyMeet: meeting detection and the prompt (plan 8.2) ----------
+
+fn create_prompt(app: &AppHandle) -> tauri::Result<()> {
+    // Like the pill: exactly the capsule's size (prompt_shape), never activated, at the top centre of the main screen.
+    let (w, h) = (480.0, 56.0);
+    let win = WebviewWindowBuilder::new(app, "prompt", WebviewUrl::App("prompt.html".into()))
+        .title("EsyMeet")
+        .inner_size(w, h)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .focusable(false)
+        .focused(false)
+        .visible(false)
+        .build()?;
+    never_activate(&win);
+    place_prompt(&win, w, h);
     Ok(())
+}
+
+fn place_prompt(win: &tauri::WebviewWindow, w: f64, h: f64) {
+    let _ = win.set_size(tauri::LogicalSize::new(w, h));
+    if let Ok(Some(m)) = win.primary_monitor() {
+        let sf = m.scale_factor();
+        let area = m.work_area();
+        let x = area.position.x + ((area.size.width as f64 - w * sf) / 2.0) as i32;
+        let y = area.position.y + (16.0 * sf) as i32;
+        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
+/// The prompt page reports its capsule's size (CSS pixels); the window follows.
+#[tauri::command]
+fn prompt_shape(app: AppHandle, w: f64, h: f64) {
+    if let Some(win) = app.get_webview_window("prompt") {
+        if w >= 40.0 && h >= 20.0 && w <= 1200.0 && h <= 120.0 {
+            place_prompt(&win, w.ceil(), h.ceil());
+        }
+    }
+}
+
+/// Shows the prompt for an app, or hides it (None).
+fn show_prompt(app: &AppHandle, name: Option<&str>) {
+    if let Some(w) = app.get_webview_window("prompt") {
+        let _ = w.emit("prompt", json!({ "app": name }));
+        show_quietly(&w, name.is_some());
+    }
+}
+
+/// How long an unanswered prompt stays (owner, 25 Nov: 30 s; the tray offers Start for the rest of the call).
+const PROMPT_FADE: Duration = Duration::from_secs(30);
+
+/// How often the watcher looks. Each look asks every microphone for its audio sessions, a few milliseconds: at 1 s the
+/// watcher cost 0.7% of one core (measured 25 Nov).
+const MEET_CHECK: Duration = Duration::from_secs(2);
+
+/// Asks Windows which programs are capturing, every MEET_CHECK, and applies the rules (meeting_detect). Never records
+/// anything.
+fn watch_meetings(app: &AppHandle) {
+    let app = app.clone();
+    // Test builds only: the meeting suite's own program counts as a meeting app.
+    #[cfg(feature = "e2e")]
+    let test_exe = std::env::var("ESYTYPE_TEST_MEET_EXE").ok();
+    #[cfg(not(feature = "e2e"))]
+    let test_exe: Option<String> = None;
+    std::thread::spawn(move || loop {
+        let (enabled, off) = {
+            let s = app.state::<Shared>().settings.lock().unwrap().clone();
+            (s.meet_detect, s.meet_off)
+        };
+        // Nothing is read while detection is off; an open prompt still goes.
+        let active = if enabled { meeting_detect::read_active(test_exe.as_deref()) } else { Vec::new() };
+        let shared = app.state::<Shared>();
+        let mut m = shared.meet.lock().unwrap();
+        for e in m.detector.step(&active, Instant::now(), enabled, &off) {
+            match e {
+                meeting_detect::Event::Prompt { key, name } => {
+                    trace!("meeting detected");
+                    m.showing = Some(key);
+                    m.gen += 1;
+                    show_prompt(&app, Some(name));
+                    let (a, gen) = (app.clone(), m.gen);
+                    std::thread::spawn(move || {
+                        std::thread::sleep(PROMPT_FADE);
+                        let shared = a.state::<Shared>();
+                        let mut m = shared.meet.lock().unwrap();
+                        if m.gen == gen && m.showing.is_some() {
+                            m.detector.faded();
+                            m.showing = None;
+                            m.gen += 1;
+                            show_prompt(&a, None);
+                        }
+                    });
+                }
+                meeting_detect::Event::Ended { .. } => {
+                    m.showing = None;
+                    m.gen += 1;
+                    show_prompt(&app, None);
+                }
+            }
+        }
+        let on = m.detector.in_meeting(enabled, &off).is_some();
+        if on != m.tray_on {
+            m.tray_on = on;
+            if let Some(item) = shared.tray_meet.lock().unwrap().as_ref() {
+                let _ = item.set_enabled(on);
+            }
+        }
+        drop(m);
+        std::thread::sleep(MEET_CHECK);
+    });
+}
+
+/// The prompt's buttons: Start transcription (start: true) or Not now.
+#[tauri::command]
+fn meet_answer(app: AppHandle, start: bool) {
+    {
+        let shared = app.state::<Shared>();
+        let mut m = shared.meet.lock().unwrap();
+        m.detector.answer();
+        m.showing = None;
+        m.gen += 1;
+    }
+    show_prompt(&app, None);
+    if start {
+        meet_start(&app);
+    }
+}
+
+/// Start transcription, from the prompt or the tray: opens EsyMeet. The recording session itself is milestone 8.3,
+/// which listens for "meet-start".
+fn meet_start(app: &AppHandle) {
+    show_main(app);
+    let _ = app.emit_to("main", "open-tab", "meet");
+    let _ = app.emit("meet-start", ());
+}
+
+/// Settings > Meetings: the meeting apps EsyType knows, as (key, name).
+#[tauri::command]
+fn meet_apps() -> Vec<(String, String)> {
+    meeting_detect::APPS.iter().map(|a| (a.0.to_string(), a.1.to_string())).collect()
 }
 
 /// Sizes the pill window to the pill (CSS pixels) and keeps it at the bottom centre of the main screen's work area.
@@ -1280,6 +1455,8 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open EsyType", true, None::<&str>)?;
     let pad = MenuItem::with_id(app, "scratchpad", "Open Scratchpad", true, None::<&str>)?;
     let prefs = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
+    let meet = MenuItem::with_id(app, "meet-start", "Start meeting transcription", false, None::<&str>)?;
+    *app.state::<Shared>().tray_meet.lock().unwrap() = Some(meet.clone());
     let on = app.state::<Shared>().settings.lock().unwrap().clean().is_some();
     let clean = CheckMenuItem::with_id(app, "clean", "Clean mode", true, on, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit EsyType", true, None::<&str>)?;
@@ -1287,7 +1464,7 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("app icon"))
         .tooltip(TRAY_TIP)
-        .menu(&Menu::with_items(app, &[&open, &pad, &prefs, &clean, &quit])?)
+        .menu(&Menu::with_items(app, &[&open, &pad, &meet, &prefs, &clean, &quit])?)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, e| match e.id().as_ref() {
             "open" => show_main(app),
@@ -1299,6 +1476,7 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
                 show_main(app);
                 let _ = app.emit_to("main", "open-tab", "settings");
             }
+            "meet-start" => meet_answer(app.clone(), true),
             "clean" => {
                 let s = app.state::<Shared>();
                 let mut new = s.settings.lock().unwrap().clone();
@@ -1999,6 +2177,8 @@ fn main() {
             mic_testing: AtomicBool::new(false),
             tray_recording: AtomicBool::new(false),
             pill_gen: AtomicU64::new(0),
+            meet: Mutex::new(MeetPrompt::default()),
+            tray_meet: Mutex::new(None),
         })
         .setup(move |app| {
             let theme = app.state::<Shared>().settings.lock().unwrap().theme.clone();
@@ -2006,7 +2186,9 @@ fn main() {
             let key = app.state::<Shared>().settings.lock().unwrap().ptt_key.clone();
             apply_ptt_key(app.handle(), &key);
             create_pill(app.handle())?;
+            create_prompt(app.handle())?;
             create_tray(app.handle())?;
+            watch_meetings(app.handle());
             // Test builds only: page zoom, to check layouts at large text sizes without changing Windows' display setting.
             #[cfg(feature = "e2e")]
             if let (Some(w), Some(z)) = (app.get_webview_window("main"), std::env::var("ESYTYPE_TEST_ZOOM").ok().and_then(|z| z.parse::<f64>().ok())) {
@@ -2039,7 +2221,7 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy, usage_summary, insights_data, ui_state, ui_remember, dict_meta, snip_meta, open_website, pill_shape, test_pill, preview_sound,
+        .invoke_handler(tauri::generate_handler![get_status, save_settings, set_models_dir, download_model, cancel_download, history_list, history_edit, history_delete, history_clear, vocabulary_names, transparency_effects, microphone_allowed, open_mic_privacy, usage_summary, insights_data, ui_state, ui_remember, dict_meta, snip_meta, open_website, pill_shape, test_pill, preview_sound, prompt_shape, meet_answer, meet_apps,
             dict_list, dict_add, dict_update, dict_delete, dict_clear, dict_import, dict_export, snip_list, snip_add, snip_update, snip_delete, snip_clear, snip_import, snip_export, snip_preview, style_preview, recent_apps, notes_list, note_get, note_create, note_save, note_delete, notes_clear, note_export, flushed, show_in_folder, dismiss_settings_problem, open_folder, check_shortcut, pause_shortcuts, mic_test, hide_window, history_export, settings_export, settings_import_preview, settings_import_apply, backup_now, backup_check, backup_forget, restore_backup, undo_restore, delete_all_data, copy_text, pill_cancel, pill_copy, pill_original, pill_undo, pill_use_original, pill_stop])
         .run(context)
         .expect("EsyType failed to start");

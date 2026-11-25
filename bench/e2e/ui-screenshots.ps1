@@ -69,7 +69,7 @@ try {
     Invoke-El (Find-El $root $p $CT::Button -Like); Start-Sleep 1.2; Snap ($p.TrimEnd('*').ToLower())
   }
   # the Settings panel, every section, and the Delete all dialog (cancelled)
-  foreach ($sec in 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'History & Privacy', 'Permissions', 'About') {
+  foreach ($sec in 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'Meetings', 'History & Privacy', 'Permissions', 'About') {
     Open-Settings $root $sec; Snap ('settings-' + ($sec.ToLower() -replace '[^a-z]+', '-'))
   }
   Open-Settings $root 'History & Privacy'

@@ -626,3 +626,11 @@ textarea.over { border-color: var(--et-red); }
 .setup-wave .wave { height: 90px; }
 /* The Acknowledgements toggle in About: a 32 px target like every other control */
 .acknowledgements summary { line-height: 32px; cursor: pointer; }
+
+/* EsyMeet's "Meeting detected" prompt (plan 8.2): the pill's capsule and frost, two lines of text, at the top centre */
+.meet-prompt { height: 56px; gap: 12px; padding: 0 10px 0 14px; }
+.meet-icon { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255, 255, 255, 0.1); }
+.meet-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.meet-title { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; }
+.meet-note { font-size: 12px; font-weight: 400; color: var(--et-text-2); white-space: nowrap; }
+@media (forced-colors: active) { .meet-icon { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; color: CanvasText; } }

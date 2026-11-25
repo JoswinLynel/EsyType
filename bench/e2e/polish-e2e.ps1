@@ -41,7 +41,7 @@ $trace = Join-Path $Work 'polish-trace.txt'
 function Launch {
   $script:app = Start-Process $Exe -PassThru -RedirectStandardError $trace; Start-Sleep 9
   $script:root = Get-AppWindow $app.Id 'EsyType'; $script:h = [IntPtr]$root.Current.NativeWindowHandle; $script:scale = [Po]::GetDpiForWindow($h) / 96
-  $t = (Invoke-RestMethod "http://127.0.0.1:$Port/json") | Where-Object { $_.type -eq 'page' -and $_.url -notmatch 'pill' } | Select-Object -First 1
+  $t = (Invoke-RestMethod "http://127.0.0.1:$Port/json") | Where-Object { $_.type -eq 'page' -and $_.url -notmatch 'pill|prompt' } | Select-Object -First 1
   $script:ws = New-Object System.Net.WebSockets.ClientWebSocket; $ws.ConnectAsync([Uri]$t.webSocketDebuggerUrl, [Threading.CancellationToken]::None).Wait()
 }
 function Js([string]$expr) {
@@ -93,7 +93,7 @@ try {
   Launch
   $small = @()
   foreach ($p in 'Dictation', 'Insights', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad') { Go $p; $small += Small $p }
-  foreach ($sec in 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'History & Privacy', 'Permissions', 'About') { Open-Settings $root $sec; $small += Small "Settings, $sec" }
+  foreach ($sec in 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'Meetings', 'History & Privacy', 'Permissions', 'About') { Open-Settings $root $sec; $small += Small "Settings, $sec" }
   Close-Settings $root
   Check 'Every visible button at least 32 px high, on every page' ($small.Count -eq 0) ($small -join '; ')
 

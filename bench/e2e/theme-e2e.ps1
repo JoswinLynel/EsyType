@@ -38,7 +38,7 @@ function Launch {
   $script:app = Start-Process $Exe -PassThru -RedirectStandardError $trace; Start-Sleep 9
   $script:root = Get-AppWindow $app.Id 'EsyType'; $script:h = [IntPtr]$root.Current.NativeWindowHandle
   $all = @((Invoke-RestMethod "http://127.0.0.1:$Port/json") | Where-Object type -eq 'page')
-  $script:ws = Connect ($all | Where-Object { $_.url -notmatch 'pill' } | Select-Object -First 1)
+  $script:ws = Connect ($all | Where-Object { $_.url -notmatch 'pill|prompt' } | Select-Object -First 1)
   $script:pillWs = Connect ($all | Where-Object { $_.url -match 'pill' } | Select-Object -First 1)
 }
 function Stop-App { if ($app) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue; Start-Sleep 2 } }
@@ -109,7 +109,7 @@ $audit = @'
 })()
 '@
 $pages = 'Dictation', 'EsyMeet', 'Insights', 'History', 'Dictionary', 'Snippets', 'Style', 'Scratchpad'
-$sections = 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'History & Privacy', 'Permissions', 'About'
+$sections = 'General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'Meetings', 'History & Privacy', 'Permissions', 'About'
 function AuditAll([string]$label) {
   $views = @($pages | ForEach-Object { @{ name = "$_ page"; go = [scriptblock]::Create("Go '$_'") } }) + @($sections | ForEach-Object { @{ name = "Settings, $_"; go = [scriptblock]::Create("if (-not (Js `"!!document.querySelector('.settings-panel')`")) { Go 'Settings' }; Section '$_'") } })
   foreach ($v in $views) {

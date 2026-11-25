@@ -49,7 +49,7 @@ try {
   # 3. Footer status
   Check 'Footer shows the local engine and threads' ([bool](Find-El $root 'Local*Base*threads' $CT::Button -Like -Tries 20)) ''
   # 4. Settings is a panel with every section; Esc closes it; Ctrl+, opens it again
-  $missing = @('General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'History & Privacy', 'Permissions', 'About') |
+  $missing = @('General', 'Shortcuts', 'Recording', 'Speech', 'Models', 'Meetings', 'History & Privacy', 'Permissions', 'About') |
     Where-Object { Open-Settings $root $_; @(Find-All $root $CT::Text | Where-Object { $_.Current.Name -eq $_ }).Count -eq 0 -and -not (Find-El $root $_ $CT::Text -Tries 3) }
   Check 'Settings panel shows every section with its title' ($missing.Count -eq 0) "missing: $($missing -join ', ')"
   Open-Settings $root 'Shortcuts'

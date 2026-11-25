@@ -70,6 +70,10 @@ pub struct Settings {
     pub ptt_key: String,
     /// Two quick taps of that key start hands-free; one tap stops it.
     pub double_tap: bool,
+    /// EsyMeet: offer to transcribe when a meeting app starts using the microphone (never records by itself).
+    pub meet_detect: bool,
+    /// EsyMeet: meeting apps (meeting_detect::APPS keys) that never prompt. Discord is off by default.
+    pub meet_off: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -163,6 +167,8 @@ impl Default for Settings {
             translate: false,
             ptt_key: String::new(),
             double_tap: true,
+            meet_detect: true,
+            meet_off: crate::meeting_detect::default_off(),
         }
     }
 }
@@ -508,6 +514,7 @@ mod tests {
         assert_eq!(s.max_record_minutes, 10, "older settings files stop a dictation after 10 minutes");
         assert!(!s.sound_start && !s.sound_stop && s.language == "en" && !s.translate, "no sounds, English, as before");
         assert_eq!(s.ptt_key, "", "no single-key push to talk unless chosen");
+        assert!(s.meet_detect && s.meet_off == ["discord"], "meeting detection on, Discord off (owner, 25 Nov)");
         assert_eq!(s.style_name(Some("outlook.exe")), "professional", "rules match any case");
         assert_eq!(s.style_name(Some("Slack.exe")), "casual");
         assert_eq!(s.style_name(Some("notepad.exe")), "standard");

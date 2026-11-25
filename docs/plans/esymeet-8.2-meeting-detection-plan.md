@@ -1,7 +1,9 @@
 # EsyMeet 8.2: meeting detection and the "Start transcription?" prompt. Plan for approval
 
 **Date:** 25 November 2026 · **Parent plan:** `docs/plans/next-generation-audit-and-plan.md`, milestone 8.2 · **Before it:** 8.0 (engine) and 8.1 (capture), both done outside the app
-**Status:** proposed. Nothing is built until the owner approves the defaults in section 6.
+**Status:** approved by the owner (all eight defaults, 25 Nov) and **built in the test build** (`docs/testing/2026-11-25-esymeet-8.2-meeting-detection.md`).
+
+**One change from this plan, from measurement:** Windows' registry record (section 2) had not been updated on the development PC since September. Detection asks Windows' audio session manager instead (which programs have an active microphone stream), every 2 s. The behaviour and the defaults are unchanged.
 
 ## 1. What 8.2 does
 

@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Main window and recording pill: events and the app's own commands only.",
-  "windows": ["main", "pill"],
+  "windows": ["main", "pill", "prompt"],
   "permissions": ["core:default"]
 }

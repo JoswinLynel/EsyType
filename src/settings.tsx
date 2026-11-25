@@ -13,7 +13,7 @@ export type Model = {
 };
 export type Settings = { model: string; mic: string | null; threads: number; ptt: string; toggle: string; models_dir: string | null; start_with_windows: boolean;
   text_mode: "clean" | "verbatim"; clean_fillers_extended: boolean; clean_small_numbers_as_words: boolean; dictionary_hint: boolean; builtin_vocabulary: boolean;
-  undo_shortcut: string; paste_last_shortcut: string; undo_on_pill: boolean; undo_never: string[]; setup_done: boolean | null; theme: "system" | "dark" | "light"; user_name: string; typing_wpm: number; max_record_minutes: number; sound_start: boolean; sound_stop: boolean; sound_volume: number; language: string; translate: boolean; ptt_key: string; double_tap: boolean } & HistorySettings & StyleSettings;
+  undo_shortcut: string; paste_last_shortcut: string; undo_on_pill: boolean; undo_never: string[]; setup_done: boolean | null; theme: "system" | "dark" | "light"; user_name: string; typing_wpm: number; max_record_minutes: number; sound_start: boolean; sound_stop: boolean; sound_volume: number; language: string; translate: boolean; ptt_key: string; double_tap: boolean; meet_detect: boolean; meet_off: string[] } & HistorySettings & StyleSettings;
 export type Status = {
   settings: Settings;
   models: { model: Model; installed: boolean; fit: "ok" | "ram" | "disk" }[];
@@ -55,7 +55,7 @@ const LABELS: Record<string, string> = {
   history_retention_days: "Keep history", history_record_app: "Note the program", history_keep_raw: "Keep the original transcription",
   text_mode: "Clean or Verbatim", clean_fillers_extended: "Extra fillers", clean_small_numbers_as_words: "Zero to nine as words",
   dictionary_hint: "Dictionary hint", builtin_vocabulary: "Correct common product names", style_default: "Style for other apps", style_rules: "Style rules for apps", style_custom: "Custom style",
-  undo_shortcut: "Undo shortcut", paste_last_shortcut: "Paste last shortcut", undo_on_pill: "Undo on the pill", undo_never: "Programs without Undo", theme: "Theme", user_name: "Your name", typing_wpm: "Typing speed", max_record_minutes: "Maximum recording length", sound_start: "Start sound", sound_stop: "Stop sound", sound_volume: "Sound volume", language: "Language", translate: "Translate to English", ptt_key: "Push to talk on one key", double_tap: "Double-tap for hands-free",
+  undo_shortcut: "Undo shortcut", paste_last_shortcut: "Paste last shortcut", undo_on_pill: "Undo on the pill", undo_never: "Programs without Undo", theme: "Theme", user_name: "Your name", typing_wpm: "Typing speed", max_record_minutes: "Maximum recording length", sound_start: "Start sound", sound_stop: "Stop sound", sound_volume: "Sound volume", language: "Language", translate: "Translate to English", ptt_key: "Push to talk on one key", double_tap: "Double-tap for hands-free", meet_detect: "Detect meetings", meet_off: "Meeting apps switched off",
 };
 
 export function SettingsProblem({ p, onDismiss }: { p: NonNullable<Status["settings_problem"]>; onDismiss: () => void }) {
@@ -386,9 +386,42 @@ const LANGUAGES: [string, string][] = [["en", "English"], ["auto", "Detect autom
 /** The Settings panel's sections (Mac design system, Settings), in sidebar order. */
 export const SECTIONS = [
   ["general", "General"], ["shortcuts", "Shortcuts"], ["recording", "Recording"], ["speech", "Speech"], ["models", "Models"],
-  ["privacy", "History & Privacy"], ["permissions", "Permissions"], ["about", "About"],
+  ["meetings", "Meetings"], ["privacy", "History & Privacy"], ["permissions", "Permissions"], ["about", "About"],
 ] as const;
 export type Section = (typeof SECTIONS)[number][0];
+
+/** Settings > Meetings (EsyMeet plan 8.2): whether EsyType offers to transcribe when a meeting starts, and for which apps. */
+function MeetingSettings({ s, save }: { s: Settings; save: (p: Partial<Settings>) => void }) {
+  const [apps, setApps] = useState<[string, string][]>([]);
+  useEffect(() => { invoke<[string, string][]>("meet_apps").then(setApps).catch(() => {}); }, []);
+  const on = (key: string) => !s.meet_off.includes(key);
+  const flip = (key: string, v: boolean) => save({ meet_off: v ? s.meet_off.filter((k) => k !== key) : [...s.meet_off, key] });
+  return (
+    <>
+      <section className="panel" id="set-meetings">
+        <h2>Meeting prompt</h2>
+        <div className="switch-row">
+          <span><span className="switch-title">Detect meetings</span><span className="small">When a meeting app or a browser starts using your microphone, EsyType offers to transcribe the meeting. It never records until you press Start transcription.</span></span>
+          <Switch on={s.meet_detect} set={(v) => save({ meet_detect: v })} label="Detect meetings" />
+        </div>
+      </section>
+      <section className="panel" id="set-meeting-apps">
+        <h2>Apps that can prompt</h2>
+        {apps.map(([key, name]) => (
+          <div className="switch-row" key={key}>
+            <span className="switch-title">{name}</span>
+            <Switch on={s.meet_detect && on(key)} set={(v) => { if (s.meet_detect) flip(key, v); }} label={name} />
+          </div>
+        ))}
+        <p className="small">Browsers are named, not the website: EsyType doesn't read your tabs. Discord is off unless you switch it on, as it is often used for game chat.</p>
+      </section>
+      <section className="panel">
+        <h2>What EsyType reads</h2>
+        <p className="small">Only which program is using the microphone, from Windows' own record (the one behind the taskbar's microphone icon). Never window titles, meeting names or who is in the meeting. Nothing is recorded or saved until you start transcribing.</p>
+      </section>
+    </>
+  );
+}
 
 /** Settings as a panel over the main window: its own sidebar, one section at a time. Esc or a click outside closes it. */
 export function SettingsPanel({ section, setSection, close, ...rest }: Parameters<typeof SettingsPage>[0] & { setSection: (s: Section) => void; close: () => void }) {
@@ -614,6 +647,8 @@ export function SettingsPage({ section, status, save, refresh, progress, setProg
         </label>
         <p className="small">Automatic uses one thread per processor core{hw.physical ? ` (${hw.physical} here)` : ""}, leaving room for other programs: more threads are slightly faster on an idle PC but can be much slower while other programs are busy. Fewer threads: slower transcription, less load.</p>
       </section>}
+
+      {is("meetings") && <MeetingSettings s={s} save={save} />}
 
       {is("permissions") && <section className="panel" id="set-permissions">
         <h2>Microphone</h2>
