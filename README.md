@@ -6,18 +6,18 @@
 Hold a shortcut, speak, release. Your words are turned into text on your own PC and typed wherever your cursor is.<br>
 No account, no cloud, no subscription, no usage limit.</p>
 
-<p align="center"><a href="download/EsyType_0.5.0_x64-setup.exe"><b>⬇ Download EsyType 0.5.0 for Windows</b></a> (5.6 MB, 64-bit Windows 10 or 11)</p>
+<p align="center"><a href="download/EsyType_0.5.1_x64-setup.exe"><b>⬇ Download EsyType 0.5.1 for Windows</b></a> (5.6 MB, 64-bit Windows 10 or 11)</p>
 
 ![EsyType: hold the shortcut, speak, release](docs/images/dictation-ctrl-space-0.5.0.png)
 
 ## Install
 
-1. Download [`EsyType_0.5.0_x64-setup.exe`](download/EsyType_0.5.0_x64-setup.exe) (on the file's page, press the download button).
+1. Download [`EsyType_0.5.1_x64-setup.exe`](download/EsyType_0.5.1_x64-setup.exe) (on the file's page, press the download button).
 2. Run it. The installer is not code-signed yet, so Windows SmartScreen may say "Windows protected your PC": choose **More info**, then **Run anyway**.
 3. EsyType installs for your Windows account only. No administrator rights are needed.
 4. On first start, EsyType asks you to pick a speech model and downloads it once. After that it works fully offline.
 
-SHA-256 of the installer: `2945fe182dd4046077fa5c7fbc032f41c13bdb0fcb324ae89f7da1686544cba2`
+SHA-256 of the installer: `31e78a47e16e827954913e94f9821fb7ac900ebcf8cfe9471e374ea7e69ad8d0`
 
 To remove it: Windows Settings → Apps → EsyType → Uninstall. Tick "Also delete my settings, History, notes and downloaded speech models" if you want nothing left behind.
 
@@ -80,7 +80,7 @@ Full records: [docs/testing/2026-11-22-product-names.md](docs/testing/2026-11-22
 
 ## Project status
 
-Version **0.5.0**. Dictation, the new design with Insights, one-key push to talk, light and dark themes, Clean mode, Dictionary, built-in product names, Snippets, Styles, Undo, History, Scratchpad, backup and the Windows installer are done and pass automated tests. Next: recognition accuracy on real voices, then optional AI enhancement (see [ROADMAP.md](ROADMAP.md)). Exactly what exists: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+Version **0.5.1**. Dictation, the new design with Insights, one-key push to talk, light and dark themes, Clean mode, Dictionary, built-in product names, Snippets, Styles, Undo, History, Scratchpad, backup and the Windows installer are done and pass automated tests. Next: recognition accuracy on real voices, then optional AI enhancement (see [ROADMAP.md](ROADMAP.md)). Exactly what exists: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 
 ## Documents
 
