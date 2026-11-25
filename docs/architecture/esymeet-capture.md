@@ -27,6 +27,7 @@ Both are written as **16 kHz mono 32-bit float**, the format Whisper takes, to `
                  reopens on a change or a stream error, retries a lost device; on stop pads both files to the end
 ```
 
+- **Each stream on its own holder thread:** it opens the stream, keeps it until told to close and then ends (section 5).
 - **Callbacks do almost nothing:** they mix the frame to mono, note the capture time Windows reports for the buffer and send the chunk. No locks, no disk.
 - **The capture thread owns the streams.** cpal streams must stay on the thread that made them, as in `audio.rs`.
 - **One writer per source.** A slow disk delays only that source's file, never the callback.
@@ -68,14 +69,18 @@ Devices run at 48 kHz (this PC), 44.1 kHz or others. Each writer keeps a **box-f
 | Event | What happens |
 |---|---|
 | The Windows default device changes (headphones plugged in, Bluetooth connects) | Within 2 s the source is reopened on the new default. It is logged in the source's events |
-| A stream reports a real error (device gone, stream invalidated) | Reopened. If it cannot be opened, the source is **lost**: the other source keeps going, and the lost one is retried every 2 s |
+| A stream reports a real error (device gone, stream invalidated) | Reopened on the current default. If it cannot be opened, the source is **lost**: the other source keeps going, and the lost one is retried every 2 s, logged once per reason. *Measured with Bluetooth earbuds: out → laptop speakers, back in → earbuds, 14 of 14 sentences captured* |
 | Windows flags a **discontinuity** (cpal `Xrun`), moves the stream itself (`DeviceChanged`) or refuses real-time priority | **Counted, not reopened.** The stream carries on. *Measured: reopening on these cost 1.4 s of microphone audio in 30 s in the first version; now 0 reopens in 2.5 hours of runs* |
 | A chosen microphone that is not connected | The Windows default is used, as in dictation |
 | Neither source can be opened | `start` fails with a message |
 
 **Discontinuities on the PC-sound stream are normal:** Windows flags them when sound starts again after silence (50 in an hour). Every tone and sentence was still complete. On the microphone they are rare (2–4 in 15–60 minutes), with no gap after the first second. *Measured.*
 
-**Not yet tested:** device changes and real stream failures did not happen in any run, so the reopen and retry paths are unproven. They need someone to plug and unplug a device.
+**Two Windows details make device changes work** (*measured*: without them the PC sound was lost for the rest of the run after a Bluetooth switch):
+- **Open the real device, not cpal's virtual default.** cpal's default device is activated through `ActivateAudioInterfaceAsync`. After Windows invalidated a stream, that activation failed for the rest of the process (`RPC_E_CHANGED_MODE`). The module looks up the current default's name and opens that device from the device list; the virtual default is only the fallback.
+- **One holder thread per stream.** cpal sets up COM per thread. Each stream is opened on, and lives on, its own thread, which ends when the stream is closed, so every reopen starts clean. The capture thread only watches and decides.
+
+**Still to test:** a change of microphone (the default microphone never changed) and wired or USB devices. Up to about 2 s of PC sound can be missed at the moment of a switch, because the module checks every 2 s; 8.3 should check stream errors every 100 ms.
 
 ## 6. Files and crash safety
 

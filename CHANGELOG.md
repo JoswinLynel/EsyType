@@ -18,7 +18,7 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
   - Silent PC sound now keeps up with the clock.
   - Chunks are placed by capture time, not arrival time.
 - **Found:** the laptop microphone repeats the speakers' speech about 60 ms later, so the two tracks stay separate.
-- **Still to do:** the device-change test (headphones in and out) needs the owner, so 8.1 is not yet complete.
+- **Device changes, tested with the owner's Bluetooth earbuds:** first the PC sound was lost after a switch. cpal's virtual default device could not be reactivated. Now the real default device is opened, on its own thread: 14 of 14 sentences captured through two switches. A change of microphone is still untested.
 - Report: `docs/testing/2026-11-25-esymeet-capture-study.md`. Architecture: `docs/architecture/esymeet-capture.md`.
 
 ### 2026-11-25: EsyMeet study 8.0, the engine for live meetings (test tools only; the app is unchanged)

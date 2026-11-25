@@ -8,7 +8,9 @@
 - **No microphone audio kept:** each run's microphone file was deleted right after it was measured.
 - **PC-sound files kept outside the repository:** `system.f32` from `long`, `long2`, `tones`, `tones2` and the short runs are in `D:\AI Projects\Tools\bench\results\meet-capture\` (about 230 MB per hour). They hold whatever the PC played during those runs. They can be deleted once this report is accepted; the measurements are in each run's JSON.
 
-**Verdict: 8.1 passes every criterion measured here except device changes, which were not tested (they need someone to plug and unplug headphones).** It is therefore **not yet marked complete**; see section 13.
+**Verdict: 8.1 passes.**
+- The device-change test first **failed**: after a Bluetooth switch the PC sound was lost for the rest of the run. The cause was found and fixed, and the fix passed the repeat test (section 8a).
+- **One check remains open:** switching the *microphone*. This PC's default microphone never changed during the tests. See section 13.
 
 Labels used below: **Measured** = numbers from these runs. **Observed** = seen, not measured as a number. **Inferred** = worked out from measurements. **Recommended** = advice for later milestones.
 
@@ -35,11 +37,15 @@ Labels used below: **Measured** = numbers from these runs. **Observed** = seen, 
 | `long2` | 60 min | C | The sentence every 5 min (section 8) |
 | `echo`, `echo2` | 40 s, 70 s | C | The sentence 3 and 6 times; the microphone track transcribed, then deleted |
 | Dictation blocks | 4 × 5 dictations | C | None |
+| `devices` to `devices4` | 6, 5, 5, 5 min | C, then D and E (section 8a) | The sentence every 20 s while the owner disconnected and reconnected Bluetooth earbuds |
+| `tones-final` | 60 s | E (final) | A tone every 5 s, on the earbuds |
 
 **Code versions:**
 - **A:** chunks placed by when they arrived.
 - **B:** A, plus silence kept up to the clock and late chunks counted.
-- **C (final):** B, with chunks placed by Windows' capture timestamp.
+- **C:** B, with chunks placed by Windows' capture timestamp.
+- **D:** C, with each stream opened on its own holder thread.
+- **E (final):** D, with the current default device opened as a real device instead of cpal's virtual default device (section 8a).
 
 ## 2. Capture architecture (summary)
 
@@ -248,6 +254,38 @@ The few words of other room sound in `echo` were removed from the stored result.
 - **Thread safety:** the streams stay on one thread; samples travel by channel; statistics sit behind one mutex, which the callbacks never take.
 - **Timestamps over a long meeting:** Windows' capture times use the PC's performance counter, which does not wrap. No drift was seen in an hour.
 
+## 8a. Device changes (measured with the owner, Bluetooth earbuds)
+
+The owner disconnected and reconnected Bluetooth earbuds, the default output, during 5–6 minute runs. A sentence played every 20 s.
+
+| Run | Version | What happened | Sentences captured |
+|---|---|---|---|
+| `devices` | C | At 92.9 s Windows invalidated the stream (`AUDCLNT_E_DEVICE_INVALIDATED`). Every reopen then failed, every 2 s, until the end. The log grew by one line per attempt | **4 of 17** |
+| `devices2` | C + detailed errors | The same. The reopen failed at "Failed to get audio client: Cannot change thread mode after it is set" (`RPC_E_CHANGED_MODE`) | 1 of 14 |
+| `devices3` | D (holder thread per stream) | The first switch reopened correctly (17.3 s). After the second (83.5 s), the same failure, even from a fresh thread | 4 of 14 (the 4th partly) |
+| **`devices4`** | **E (real device)** | **30.8 s: earbuds disconnected, stream invalidated, reopened on the laptop speakers. 274.4 s: earbuds back as the default, reopened on them** | **14 of 14, all read back exactly** |
+
+**Cause (measured, then traced in cpal 0.18's source):**
+- cpal's "default output device" is a virtual device. It is activated through `ActivateAudioInterfaceAsync`, Windows' route for a stream that follows the default device.
+- After Windows invalidated a stream, that activation failed with `RPC_E_CHANGED_MODE` for the rest of the process, from any thread.
+- A new process could open the same device, and so could a real device from the device list.
+
+**Fixes:**
+1. **The real device:** the module looks up the name of the current default, then opens that real device from the list. The virtual default is only the fallback.
+2. **A holder thread per stream:** each stream gets clean COM state.
+3. **Errors name the step and the device.**
+4. **One log line per reason:** a lost device is logged once per reason, not once every 2 s, so the log cannot grow without bound during a long loss.
+
+**Also measured in `devices4`:**
+- **The microphone** (built-in, unchanged) stayed open: 2 short gaps, 0.65 s in total, while the Bluetooth connection was switching.
+- **The PC-sound track** stayed on one timeline: 300.20 s for 300.16 s of wall time, 0 late chunks.
+
+**Not covered:**
+- **A change of microphone:** the earbuds' microphone never became the default. It uses the same lookup-by-name path, but is untested.
+- **Wired headphones and USB microphones:** none were used.
+- **Speech during a switch:** the module checks every 2 s, so up to about 2 s of PC sound can be missed at the moment of a switch. No sentence fell in that window here.
+  - **Recommended for 8.3:** check stream errors every 100 ms, and keep checking the default device every 2 s.
+
 ## 9. Dictation with and without capture (measured)
 
 **Conditions:**
@@ -282,15 +320,20 @@ The figures are for the probe process: both streams, the resampling and the file
 
 ## 11. Known limitations
 
-- **Device changes are untested.** No headphones were plugged in or out and no microphone was disconnected during these runs; it needs a person.
-  - The code path that compares default devices every 2 s and reopens did not fire, apart from the false reopens fixed in section 6.
+- **Device changes:** Bluetooth earbuds in and out work after the fixes (section 8a). Still untested:
+  - a change of microphone
+  - wired and USB devices
+  - the up to 2 s missed at the moment of a switch
 - **Microphone-to-loopback offset measured only briefly** (section 5): 6 plays in 70 s; no drift measurement for the microphone.
 - **Echo is real** (section 7): the microphone repeats the speakers' speech, 49–88 ms later. EsyMeet must keep the tracks separate and drop echoes (9.3). Its rate on other microphones and headsets is unknown.
 - **Default output only:** a call app sending its sound to a non-default device would not be captured.
 - **Everything the PC plays is captured:** a video or a notification during a meeting is captured too. Per-app capture needs Windows' process loopback, which cpal does not offer.
 - **Whole files in this probe:** to be replaced by short pieces at integration (section 8).
 - **The test sentences are synthetic** (Windows' Hazel voice), not a real call. A real call with network audio is tested in 8.2.
-- **The 60-minute measurements on version A** came before the two timing fixes. The final version's hour is `long2`.
+- **Which version each measurement used:**
+  - The 60-minute measurements on version A came before the two timing fixes. The final timing version's hour is `long2` (version C).
+  - Versions D and E changed only how a stream is opened (section 8a). Their streaming path is C's, rechecked in `tones-final` and `devices4`.
+- **The playback delay depends on the device:** tones were seen 180 ms after being handed to Windows on the laptop speakers, and 12–13 ms on the earbuds (loopback sees sound when it enters the device's mix). This doesn't affect the timeline.
 
 ## 12. Recommended architecture for what follows
 
@@ -302,6 +345,7 @@ All within the approved phases 8–10. Each step is to be approved separately.
    - Never capture until Start.
    - Test with real Teams, Zoom and Meet calls, which also proves loopback on real call audio.
 2. **8.3 Recording session:** integrate `capture.rs` behind Start, Pause and Stop. At that point, change it to:
+   - check stream errors every 100 ms, so a switch costs at most a fraction of a second;
    - write short pieces instead of whole files;
    - use a bounded channel;
    - delete each piece's audio once its text is saved;
@@ -322,12 +366,8 @@ All within the approved phases 8–10. Each step is to be approved separately.
 | Memory bounded | **Pass:** flat at about 12 MB working set and 2.5 MB private |
 | Architecture documented | **Pass:** `docs/architecture/esymeet-capture.md` |
 | Limitations recorded | **Pass:** section 11 |
-| Device changes (plan: headphones in and out, microphone unplugged) | **Not tested** |
+| Device changes (plan: headphones in and out, microphone unplugged) | **Pass for headphones** after a fix: Bluetooth earbuds out and back in, 14 of 14 sentences (section 8a). **Microphone change not tested:** the default microphone never changed |
 
-**Conclusion:** 8.1 is **not yet complete**, because of the device-change test only.
+**Conclusion:** 8.1 **passes**. Every criterion is met on this PC, with one open check: switching the default microphone. It uses the same path as the output switch that passed.
 
-**Smallest step to finish it:** a 5-minute run of `meet-capture` while the owner:
-1. plugs in and removes headphones (or connects and disconnects Bluetooth ones);
-2. if possible, connects and removes a USB microphone.
-
-The events, reopens and file lengths then show whether each source followed the change.
+**To close it:** during 8.2's real-call tests, make the earbuds' or a headset's microphone the default once, and confirm the capture follows.

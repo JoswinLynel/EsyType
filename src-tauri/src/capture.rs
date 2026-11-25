@@ -117,15 +117,26 @@ pub fn start(dir: &Path, mic: Option<String>) -> Result<Capture, String> {
 /// sample was captured.
 type Chunk = (Vec<f32>, u32, Instant);
 
+/// An open source: its stream lives on its own holder thread (see `open`); dropping this closes it.
 struct Open {
-    /// Held only to keep the stream running; dropping it closes the device.
-    _stream: cpal::Stream,
+    stop: Option<Sender<()>>,
+    holder: Option<std::thread::JoinHandle<()>>,
     device: String,
     /// The stream's error, if cpal reported one that stops it.
     failed: Arc<Mutex<Option<String>>>,
 }
 
-/// The capture thread: owns the cpal streams (they must stay on the thread that made them) and watches the devices.
+impl Drop for Open {
+    fn drop(&mut self) {
+        drop(self.stop.take()); // the holder wakes, drops the stream and ends
+        if let Some(h) = self.holder.take() {
+            let _ = h.join();
+        }
+    }
+}
+
+/// The capture thread: watches the devices and decides when to reopen. Each stream lives on its own holder thread
+/// (cpal streams stay on the thread that made them; see `open`).
 fn run(dir: &Path, mic: Option<String>, start: Instant, stop: Arc<AtomicBool>, stats: Arc<Mutex<[Stats; 2]>>, ready: Sender<bool>) {
     let mut writers = Vec::new();
     let mut opens: [Option<Open>; 2] = [None, None];
@@ -141,9 +152,19 @@ fn run(dir: &Path, mic: Option<String>, start: Instant, stop: Arc<AtomicBool>, s
         let mut s = stats.lock().unwrap();
         s[i].events.push(format!("{:.1} s: {what}", start.elapsed().as_secs_f64()));
     };
+    // Why each source last failed to open: a lost device is retried every CHECK, but logged only when the reason changes.
+    let mut last_fail: [Option<String>; 2] = [None, None];
     for (i, src) in [Source::Mic, Source::System].into_iter().enumerate() {
-        opens[i] = open(src, mic.as_deref(), &senders[i], &xruns[i], &stats, i);
-        note(i, opens[i].as_ref().map_or("could not open".into(), |o| format!("opened {}", o.device)));
+        match open(src, mic.as_deref(), &senders[i], &xruns[i], &stats, i) {
+            Ok(o) => {
+                note(i, format!("opened {}", o.device));
+                opens[i] = Some(o);
+            }
+            Err(e) => {
+                note(i, format!("could not open: {e}"));
+                last_fail[i] = Some(e);
+            }
+        }
     }
     let _ = ready.send(opens.iter().any(|o| o.is_some()));
     let mut last_check = Instant::now();
@@ -171,16 +192,23 @@ fn run(dir: &Path, mic: Option<String>, start: Instant, stop: Arc<AtomicBool>, s
             };
             if let Some(why) = why {
                 opens[i] = None; // drop the old stream before opening the new one
-                opens[i] = open(src, mic.as_deref(), &senders[i], &xruns[i], &stats, i);
-                let ok = opens[i].is_some();
-                {
-                    let mut s = stats.lock().unwrap();
-                    s[i].live = ok;
-                    if ok {
+                match open(src, mic.as_deref(), &senders[i], &xruns[i], &stats, i) {
+                    Ok(o) => {
+                        note(i, format!("{why}; reopened {}", o.device));
+                        opens[i] = Some(o);
+                        last_fail[i] = None;
+                        let mut s = stats.lock().unwrap();
+                        s[i].live = true;
                         s[i].reopens += 1;
                     }
+                    Err(e) => {
+                        stats.lock().unwrap()[i].live = false;
+                        if last_fail[i].as_deref() != Some(e.as_str()) {
+                            note(i, format!("{why}; lost, retrying every {} s: {e}", CHECK.as_secs()));
+                        }
+                        last_fail[i] = Some(e);
+                    }
                 }
-                note(i, format!("{why}; {}", opens[i].as_ref().map_or("lost, retrying".into(), |o| format!("reopened {}", o.device))));
             }
         }
     }
@@ -218,39 +246,82 @@ fn default_name(src: Source, mic: Option<&str>) -> Option<String> {
     }
 }
 
-fn open(src: Source, mic: Option<&str>, tx: &Sender<Chunk>, xruns: &Arc<AtomicU32>, stats: &Arc<Mutex<[Stats; 2]>>, i: usize) -> Option<Open> {
-    let host = cpal::default_host();
-    let device = match src {
-        Source::Mic => mic
-            .and_then(|name| host.input_devices().ok()?.find(|d| crate::audio::device_name(d) == name))
-            .or_else(|| host.default_input_device())?,
-        Source::System => host.default_output_device()?,
+/// Opens one source on a new holder thread, which keeps the stream until the `Open` is dropped, so every (re)open starts
+/// with clean per-thread COM state. (On its own this did not fix reopening after a device change; opening the real
+/// device does, see `open_here`.) The error names the step that failed and the device, for the events log.
+fn open(src: Source, mic: Option<&str>, tx: &Sender<Chunk>, xruns: &Arc<AtomicU32>, stats: &Arc<Mutex<[Stats; 2]>>, i: usize) -> Result<Open, String> {
+    let (ready_tx, ready_rx) = mpsc::channel::<Result<(String, String), String>>();
+    let (stop_tx, stop_rx) = mpsc::channel::<()>();
+    let failed = Arc::new(Mutex::new(None));
+    let (mic, tx, xruns, f2) = (mic.map(str::to_string), tx.clone(), xruns.clone(), failed.clone());
+    let holder = std::thread::spawn(move || match open_here(src, mic.as_deref(), &tx, &xruns, &f2) {
+        Ok((stream, name, format)) => {
+            let _ = ready_tx.send(Ok((name, format)));
+            let _ = stop_rx.recv(); // until the Open is dropped (or the capture ends)
+            drop(stream);
+        }
+        Err(e) => {
+            let _ = ready_tx.send(Err(e));
+        }
+    });
+    let (name, format) = match ready_rx.recv() {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => {
+            let _ = holder.join();
+            return Err(e);
+        }
+        Err(_) => return Err("the opening thread stopped unexpectedly".into()),
     };
+    let mut s = stats.lock().unwrap();
+    s[i].device = name.clone();
+    s[i].format = format;
+    s[i].live = true;
+    Ok(Open { stop: Some(stop_tx), holder: Some(holder), device: name, failed })
+}
+
+/// Opens and starts the stream on the calling thread: (stream, device name, format text).
+fn open_here(src: Source, mic: Option<&str>, tx: &Sender<Chunk>, xruns: &Arc<AtomicU32>, failed: &Arc<Mutex<Option<String>>>) -> Result<(cpal::Stream, String, String), String> {
+    let host = cpal::default_host();
+    // cpal's default device is a virtual one, activated by `ActivateAudioInterfaceAsync`. After Windows invalidates a
+    // stream on it, that activation failed for the rest of the process ("Cannot change thread mode after it is set";
+    // measured with Bluetooth earbuds, 25 Nov), even from a fresh thread. So the current default is looked up by name
+    // and the matching real device opened instead; the virtual one is only the fallback.
+    let (default, real) = match src {
+        Source::Mic => (host.default_input_device(), host.input_devices().ok().map(|d| d.collect::<Vec<_>>())),
+        Source::System => (host.default_output_device(), host.output_devices().ok().map(|d| d.collect::<Vec<_>>())),
+    };
+    let wanted = match src {
+        Source::Mic => mic.map(str::to_string).or_else(|| default.as_ref().map(crate::audio::device_name)),
+        Source::System => default.as_ref().map(crate::audio::device_name),
+    };
+    let device = wanted
+        .as_deref()
+        .and_then(|w| real.into_iter().flatten().find(|d| crate::audio::device_name(d) == w))
+        .or(default)
+        .ok_or("no default device")?;
+    let name = crate::audio::device_name(&device);
     // Loopback: an input stream on the output device, in the output's own format.
     let config = match src {
-        Source::Mic => device.default_input_config().ok()?,
-        Source::System => device.default_output_config().ok()?,
-    };
+        Source::Mic => device.default_input_config(),
+        Source::System => device.default_output_config(),
+    }
+    .map_err(|e| format!("{name}: format: {e}"))?;
     let (rate, channels) = (config.sample_rate(), config.channels() as usize);
-    let failed = Arc::new(Mutex::new(None));
     let cfg: cpal::StreamConfig = config.clone().into();
+    let format = format!("{rate} Hz, {channels} ch, {:?}", config.sample_format());
     let stream = match config.sample_format() {
         cpal::SampleFormat::F32 => build::<f32>(&device, cfg, channels, rate, tx.clone(), failed.clone(), xruns.clone()),
         cpal::SampleFormat::I16 => build::<i16>(&device, cfg, channels, rate, tx.clone(), failed.clone(), xruns.clone()),
         cpal::SampleFormat::I32 => build::<i32>(&device, cfg, channels, rate, tx.clone(), failed.clone(), xruns.clone()),
         cpal::SampleFormat::U16 => build::<u16>(&device, cfg, channels, rate, tx.clone(), failed.clone(), xruns.clone()),
-        _ => None,
-    }?;
-    stream.play().ok()?;
-    let name = crate::audio::device_name(&device);
-    let mut s = stats.lock().unwrap();
-    s[i].device = name.clone();
-    s[i].format = format!("{rate} Hz, {channels} ch, {:?}", config.sample_format());
-    s[i].live = true;
-    Some(Open { _stream: stream, device: name, failed })
+        f => Err(format!("unsupported sample format {f:?}")),
+    }
+    .map_err(|e| format!("{name} ({format}): open stream: {e}"))?;
+    stream.play().map_err(|e| format!("{name} ({format}): start stream: {e}"))?;
+    Ok((stream, name, format))
 }
 
-fn build<T: SizedSample + Send + 'static>(device: &cpal::Device, cfg: cpal::StreamConfig, channels: usize, rate: u32, tx: Sender<Chunk>, failed: Arc<Mutex<Option<String>>>, xruns: Arc<AtomicU32>) -> Option<cpal::Stream>
+fn build<T: SizedSample + Send + 'static>(device: &cpal::Device, cfg: cpal::StreamConfig, channels: usize, rate: u32, tx: Sender<Chunk>, failed: Arc<Mutex<Option<String>>>, xruns: Arc<AtomicU32>) -> Result<cpal::Stream, String>
 where
     f32: FromSample<T>,
 {
@@ -273,7 +344,7 @@ where
             },
             None,
         )
-        .ok()
+        .map_err(|e| e.to_string())
 }
 
 /// One source's writer: resamples to 16 kHz, pads from the clock, appends to the file.
