@@ -1,6 +1,6 @@
 # Mac design, milestones E and F, and the frosted pill. Test record
 
-**Date:** 24 November 2026 (tests run 23:02 to 23:59, PC left idle by the owner, on mains) · **Plan:** `docs/plans/mac-parity-gap-analysis.md` (milestones E and F) · **Build:** e2e test build only · **Production: not changed** (0.4.0 stays installed) · **Nothing downloaded; no dependency added**
+**Date:** 24 November 2026 (tests run 23:02 to 23:59, PC left idle by the owner, on mains) · **Plan:** `docs/plans/mac-parity-gap-analysis.md` (milestones E and F) · **Build:** e2e test build only · **Released in 0.5.0** and installed on your PC on 25 Nov (section 5) · **Nothing downloaded; no dependency added**
 
 ## 1. What was built
 
@@ -81,3 +81,24 @@ No regression. The language choice adds nothing for English: Whisper is told "en
 - **Hearing the sounds:** the test checks that dictation works and nothing fails with sounds on; whether they sound right needs a person.
 - **Right Alt and Right Shift:** only Right Ctrl was pressed; the other two differ only in their key code.
 - **The frosted look over other windows:** checked by screenshot, not by a suite.
+
+## 5. Release 0.5.0 on your PC (approved by you, 25 Nov)
+
+**Before switching:** quit only your installed EsyType and copied its database and settings to `D:\EsyAI\EsyType\backups\before-0.5.0 2026-11-25 0004`. A copy of that copy was opened and checked: integrity ok, database version 6, 20 dictations. Your live files were unchanged.
+
+**The switch:** ran `EsyType_0.5.0_x64-setup.exe /S /D=D:\EsyAI\EsyType\app` (exit code 0) and started EsyType in the tray.
+
+| Check | Result |
+|---|---|
+| Database | updated in place from version 6 to 9; integrity ok |
+| History | 20 dictations, as before |
+| Insights totals | filled in from your History: 20 dictations, 438 words over 5 days |
+| `settings.json` | byte-for-byte unchanged |
+| Start with Windows | `D:\EsyAI\EsyType\app\esytype.exe --minimized` |
+| Apps list | "EsyType" 0.5.0, publisher EsyAI, folder `D:\EsyAI\EsyType\app` |
+| The installed program | version 0.5.0, running in the tray |
+| Desktop | no shortcut made this time |
+
+**Download:** `download/EsyType_0.5.0_x64-setup.exe`, SHA-256 `2945fe182dd4046077fa5c7fbc032f41c13bdb0fcb324ae89f7da1686544cba2`. Earlier installers stay in `download/`.
+
+**Not yet seen by you:** the new pill and pages on your own dictations. The README's screenshots still show the old design.

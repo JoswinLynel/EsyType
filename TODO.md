@@ -145,7 +145,8 @@ Not cancelled, not in progress. Rule-based Clean mode is the text processing; no
 - [x] Mac design milestone D: list pages (24 Nov, test build; `docs/testing/2026-11-24-mac-design-d.md`)
 - [ ] Run polish, Scratchpad, first run and Undo in apps on an idle PC, then push D
 - [x] Mac design milestones E-F: Settings rows, one-key push to talk, sounds, language, frosted pill, first-run setup (24 Nov, test build, `docs/testing/2026-11-24-mac-design-e-f.md`)
-- [ ] Release the Mac design (A-F) as the next version: needs the owner's approval
+- [x] Release the Mac design (A-F) as 0.5.0 (25 Nov, installed on the owner's PC)
+- [ ] Refresh the README screenshots for the new design
 - [ ] Later, when asked: update notification; Mica behind the window; Clean's five switches; per-entry language; app icons
 - [ ] Update notification (check GitHub every 2-3 days, notify with Download): only when you ask
 - [ ] 6.3 Dictation screen and the glass recording pill (shape A or B chosen from screenshots)

@@ -4,7 +4,11 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
-### 2026-11-24: Mac design, milestones E and F, and the frosted pill (test build, not released)
+## 0.5.0 (2026-11-25)
+
+The Mac design (milestones A to F) for Windows. Installed on the owner's PC over 0.4.0 with History and settings kept (`docs/testing/2026-11-24-mac-design-e-f.md`, section 5).
+
+### 2026-11-24: Mac design, milestones E and F, and the frosted pill
 
 **Added**
 
@@ -29,7 +33,7 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 - Dictation time unchanged: 2.1 s against 2.1 s.
 - Record: `docs/testing/2026-11-24-mac-design-e-f.md`.
 
-### 2026-11-24: Mac design, milestone D, the list pages (test build, not released; key-pressing suites passed later, see E and F)
+### 2026-11-24: Mac design, milestone D, the list pages
 
 **Added**
 
@@ -54,7 +58,7 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 - Four key-pressing suites still need an idle PC.
 - Record: `docs/testing/2026-11-24-mac-design-d.md`.
 
-### 2026-11-24: Mac design, milestone C, Insights (test build, not released)
+### 2026-11-24: Mac design, milestone C, Insights
 
 **Added**
 
@@ -72,7 +76,7 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 - Full regression passed; dictation time unchanged.
 - Record: `docs/testing/2026-11-24-mac-design-c.md`.
 
-### 2026-11-24: Mac design, milestone B (test build, not released)
+### 2026-11-24: Mac design, milestone B
 
 **Added**
 
@@ -96,7 +100,7 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 - Full regression passed.
 - Record: `docs/testing/2026-11-24-mac-design-b.md`.
 
-### 2026-11-24: Mac design, milestone A (test build, not released)
+### 2026-11-24: Mac design, milestone A
 
 **Added**
 
