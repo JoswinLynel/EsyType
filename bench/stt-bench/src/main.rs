@@ -3,6 +3,10 @@
 //! Prints one JSON line per clip run plus a final summary line.
 //! ESYTYPE_BENCH_PROMPT: initial prompt (the Dictionary hint) for every clip. ESYTYPE_BENCH_APP=1: also the app's
 //! non-speech suppression, so results match EsyType's settings.
+//! Short-window study (EsyMeet plan, 8.0): ESYTYPE_BENCH_SHORT=<margin frames> shrinks the encoder window to the clip
+//! plus that margin (1500 frames = 30 s; also turns short_ctx on); ESYTYPE_BENCH_SINGLE=1 one segment;
+//! ESYTYPE_BENCH_NOTS=1 no timestamps; ESYTYPE_BENCH_TOKPS=<f> at most f tokens per second of audio (+8);
+//! ESYTYPE_BENCH_DEDUP=1 drops a sentence that repeats an earlier one.
 use std::time::Instant;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
@@ -29,6 +33,27 @@ fn cpu_s() -> f64 {
     let t = |f: FileTime| ((f.hi as u64) << 32 | f.lo as u64) as f64 / 1e7;
     t(k) + t(u)
 }
+/// Drops each sentence whose words (lower case, letters and digits only) equal an earlier sentence's.
+fn dedup(text: &str) -> String {
+    let key = |s: &str| s.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect::<String>().to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ");
+    let (mut seen, mut out, mut cur) = (Vec::<String>::new(), String::new(), String::new());
+    for c in text.chars().chain(std::iter::once('\n')) {
+        cur.push(c);
+        if matches!(c, '.' | '!' | '?' | '\n') {
+            let k = key(&cur);
+            if !k.is_empty() && !seen.contains(&k) { seen.push(k); out.push_str(&cur); }
+            cur.clear();
+        }
+    }
+    out.trim_end_matches('\n').to_string()
+}
+
+#[test]
+fn dedup_drops_repeated_sentences() {
+    assert_eq!(dedup(" I want tea. I want tea. Thanks!"), " I want tea. Thanks!");
+    assert_eq!(dedup(" One. Two."), " One. Two.");
+}
+
 fn esc(s: &str) -> String { s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ") }
 
 fn main() {
@@ -60,11 +85,17 @@ fn main() {
             if !prompt.is_empty() { p.set_initial_prompt(&prompt); }
             p.set_print_progress(false); p.set_print_realtime(false); p.set_print_special(false); p.set_print_timestamps(false);
             // Encoder normally processes a fixed 30 s window; shrink it for short clips (1500 frames = 30 s).
-            if short_ctx && audio_s < 30.0 { p.set_audio_ctx(((audio_s / 30.0 * 1500.0).ceil() as i32 + 64).min(1500)); }
+            let margin: Option<i32> = std::env::var("ESYTYPE_BENCH_SHORT").ok().and_then(|v| v.parse().ok());
+            if (short_ctx || margin.is_some()) && audio_s < 30.0 { p.set_audio_ctx(((audio_s / 30.0 * 1500.0).ceil() as i32 + margin.unwrap_or(64)).min(1500)); }
+            let on = |k: &str| std::env::var(k).is_ok_and(|v| v == "1");
+            if on("ESYTYPE_BENCH_SINGLE") { p.set_single_segment(true); }
+            if on("ESYTYPE_BENCH_NOTS") { p.set_no_timestamps(true); }
+            if let Some(tps) = std::env::var("ESYTYPE_BENCH_TOKPS").ok().and_then(|v| v.parse::<f64>().ok()) { p.set_max_tokens((audio_s * tps).ceil() as i32 + 8); }
             let (c0, t) = (cpu_s(), Instant::now());
             state.full(p, &pcm).expect("transcribe");
             let (secs, cpu) = (t.elapsed().as_secs_f64(), cpu_s() - c0);
             let text: String = state.as_iter().map(|s| s.to_str_lossy().map(|c| c.into_owned()).unwrap_or_default()).collect();
+            let text = if on("ESYTYPE_BENCH_DEDUP") { dedup(&text) } else { text };
             println!("{{\"model\":\"{}\",\"threads\":{},\"short_ctx\":{},\"clip\":\"{}\",\"audio_s\":{:.2},\"run\":{},\"transcribe_s\":{:.3},\"rtf\":{:.4},\"cpu_s\":{:.2},\"cpu_cores_avg\":{:.2},\"text\":\"{}\"}}",
                 esc(model), threads, short_ctx, esc(clip), audio_s, run, secs, secs / audio_s, cpu, cpu / secs, esc(text.trim()));
         }

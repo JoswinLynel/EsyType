@@ -13,6 +13,17 @@ $defs = @{
   # a short, natural-sentence prompt with common product names (the earlier "Glossary: ..." list was 150 tokens)
   prompt = @{ ESYTYPE_BENCH_PROMPT = 'We use ChatGPT, OpenAI, Claude, Gemini, Copilot, GitHub, Supabase, Vercel, Next.js and Power Automate.' }
   beam = @{ ESYTYPE_BENCH_BEAM = '5' }
+  # EsyMeet plan 8.0: the short encoder window and candidate fixes for its repeated sentences
+  short = @{ ESYTYPE_BENCH_SHORT = '64' }
+  'short-margin' = @{ ESYTYPE_BENCH_SHORT = '256' }
+  'short-single' = @{ ESYTYPE_BENCH_SHORT = '64'; ESYTYPE_BENCH_SINGLE = '1' }
+  'short-nots' = @{ ESYTYPE_BENCH_SHORT = '64'; ESYTYPE_BENCH_NOTS = '1' }
+  'short-tokens' = @{ ESYTYPE_BENCH_SHORT = '64'; ESYTYPE_BENCH_SINGLE = '1'; ESYTYPE_BENCH_TOKPS = '5' }
+  'short-dedup' = @{ ESYTYPE_BENCH_SHORT = '64'; ESYTYPE_BENCH_DEDUP = '1' }
+  'short-m128' = @{ ESYTYPE_BENCH_SHORT = '128' }
+  'short-m384' = @{ ESYTYPE_BENCH_SHORT = '384' }
+  'short-m512' = @{ ESYTYPE_BENCH_SHORT = '512' }
+  'short-margin-dedup' = @{ ESYTYPE_BENCH_SHORT = '256'; ESYTYPE_BENCH_DEDUP = '1' }
 }
 if ($Set -eq 'owner') {
   if (-not $PSBoundParameters.ContainsKey('Out')) { $Out = Join-Path (Split-Path $Out) 'owner'; New-Item -ItemType Directory -Force $Out | Out-Null }
@@ -24,7 +35,7 @@ $clips = @(Get-ChildItem (Join-Path $Audio 'accuracy') -Filter *.f32 | Sort-Obje
 }
 $env:ESYTYPE_BENCH_APP = '1'
 foreach ($c in $Conditions) {
-  foreach ($k in 'ESYTYPE_BENCH_PROMPT', 'ESYTYPE_BENCH_BEAM') { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
+  foreach ($k in 'ESYTYPE_BENCH_PROMPT', 'ESYTYPE_BENCH_BEAM', 'ESYTYPE_BENCH_SHORT', 'ESYTYPE_BENCH_SINGLE', 'ESYTYPE_BENCH_NOTS', 'ESYTYPE_BENCH_TOKPS', 'ESYTYPE_BENCH_DEDUP') { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
   foreach ($kv in $defs[$c].GetEnumerator()) { Set-Item "Env:$($kv.Key)" $kv.Value }
   $b = Get-CimInstance Win32_Battery
   $t = Get-Date

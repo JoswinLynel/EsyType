@@ -4,6 +4,14 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-25: EsyMeet study 8.0, the engine for live meetings (test tools only; the app is unchanged)
+
+- **Result:** the short encoder window with a 256-frame margin matches today's accuracy (ordinary 0.8%, LibriSpeech 3.4%). It transcribes a 10-second piece in about 1.3 s on 2 threads, so live meeting text can follow speech by about 2–6 seconds.
+- **Cost:** product names spelled exactly drop from 148 to 141 of 250.
+- **The November repeats** came from the margin being too small.
+- **Your own recordings** are still to be checked.
+- Record: `docs/testing/2026-11-25-esymeet-engine-study.md`.
+
 ## 0.5.0 (2026-11-25)
 
 The Mac design (milestones A to F) for Windows. Installed on the owner's PC over 0.4.0 with History and settings kept (`docs/testing/2026-11-24-mac-design-e-f.md`, section 5).
