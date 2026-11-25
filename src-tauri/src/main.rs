@@ -156,9 +156,6 @@ fn pill(app: &AppHandle, state: &str, message: &str) {
             unsafe {
                 let _ = ShowWindow(windows::Win32::Foundation::HWND(h.0 as _), cmd);
             }
-            if state != "hidden" {
-                pill_looks_active(&w);
-            }
         }
     }
 }
@@ -277,37 +274,20 @@ fn create_pill(app: &AppHandle) -> tauri::Result<()> {
     // Clicking (or pressing through accessibility tools) a button on the pill must not activate it: the keys that
     // Undo sends belong to the window the user dictated into.
     if let Ok(h) = win.hwnd() {
-        use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
+        use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND};
         use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE};
         let hwnd = windows::Win32::Foundation::HWND(h.0 as _);
         unsafe {
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE.0 as isize);
-            // Windows 11 rounds the corners (8 px); the pill's own corners match.
-            let round = DWMWCP_ROUND;
+            // A capsule on a transparent window: Windows must not round (or outline) the window's corners itself.
+            let round = DWMWCP_DONOTROUND;
             let _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const _ as *const core::ffi::c_void, std::mem::size_of_val(&round) as u32);
         }
     }
-    // Frosted glass (Acrylic), only while Windows' Transparency effects are on (owner, 24 Nov: a frosted rounded
-    // rectangle). Windows 11 draws Acrylic only on a window that looks active, so the pill is kept looking active
-    // (pill_looks_active) without ever taking focus.
-    if transparency_effects() {
-        use tauri::window::{Color, Effect, EffectsBuilder};
-        let _ = win.set_effects(EffectsBuilder::new().effect(Effect::Acrylic).color(Color(14, 14, 20, 90)).build());
-    }
+    // No Acrylic: Windows draws it only in a rectangle, and the owner prefers the capsule with a light frost (25 Nov).
     place_pill(&win, w, h);
     Ok(())
-}
-
-/// Tells the pill's frame it is active without activating it (lParam -1: nothing is redrawn), so Windows 11 draws its
-/// Acrylic. The caret and keyboard stay in the user's app.
-fn pill_looks_active(win: &tauri::WebviewWindow) {
-    if let Ok(h) = win.hwnd() {
-        use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, WM_NCACTIVATE};
-        unsafe {
-            SendMessageW(windows::Win32::Foundation::HWND(h.0 as _), WM_NCACTIVATE, Some(windows::Win32::Foundation::WPARAM(1)), Some(windows::Win32::Foundation::LPARAM(-1)));
-        }
-    }
 }
 
 /// Sizes the pill window to the pill (CSS pixels) and keeps it at the bottom centre of the main screen's work area.

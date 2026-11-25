@@ -29,6 +29,8 @@
   - **Without transparency effects:** a solid fallback.
 - **The black box around the pill in 0.4.0 is fixed:** the pill page had inherited the dark colour scheme, which painted its window dark.
 
+**Changed again, 25 Nov (owner):** back to a capsule with a lighter frost. Acrylic is removed. 84% opacity still showed too much through on screen, so it is 94%. See CHANGELOG.
+
 ### First-run setup (milestone F)
 - **Ten steps,** with small progress capsules, Back on the left and the main action on the right.
 - **New steps:**

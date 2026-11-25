@@ -4,6 +4,13 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-25: The recording pill is a capsule again (test build, not released)
+
+- **Owner's request:** the frosted rounded rectangle looked boxy. The pill is back to the capsule shape from before the redesign, with a lighter frost: mostly dark (94%), a faint top sheen and a thin light edge.
+- **Removed:** Windows' Acrylic blur, which can only be drawn in a rectangle, and with it the trick that kept the pill's frame looking active.
+- **Unchanged:** the wave, the status dot, Hands-free, Stop, Copy, Original and Undo.
+- **Tests:** Undo 13/13 (the pill's buttons), polish 25/25, keys 8 of 8 before the Claude app came to the front (including the pill's "Hands-free" label).
+
 ### 2026-11-25: EsyMeet milestone 8.1, dual-audio capture (test tools only; the app is unchanged)
 
 - **New capture module, not yet in the app:** `src-tauri/src/capture.rs` records your microphone and the PC's sound (WASAPI loopback) on one timeline, placed by Windows' own capture timestamps. It is driven by the probe `bench/meet-capture`.

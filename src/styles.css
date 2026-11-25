@@ -258,16 +258,16 @@ kbd { font: 600 12px/16px var(--et-font-mono); padding: 3px 8px; border-radius: 
 }
 
 
-/* Recording pill (Mac design: RecordingPill). Frosted glass: the window is exactly the pill's size and Windows blurs what is
-   behind it (Acrylic); Windows rounds the window's corners (8 px) and the pill's corners match (owner, 24 Nov: a frosted
-   rounded rectangle, as Windows can't frost a capsule). The page adds the tint, edge and sheen. The wave bars are unchanged. */
+/* Recording pill (Mac design: RecordingPill). A capsule again (owner, 25 Nov: the frosted rectangle looked boxy; keep the
+   frost light). The window is exactly the pill's size and transparent around the capsule's ends. Windows' Acrylic blur
+   only draws in a rectangle, so the frost is a light tint and sheen, mostly dark as in 0.4.0. The wave bars are unchanged. */
 .pill-body { background: transparent; overflow: hidden; color-scheme: dark; color: #fff;
   --et-text-2: rgba(255, 255, 255, 0.8); --et-text-3: rgba(255, 255, 255, 0.64); --et-glass-2: rgba(255, 255, 255, 0.06); --et-amber: #f2b04a; }
 .pill-wrap { position: fixed; inset: 0; display: grid; place-items: start center; }
-.pill { display: inline-flex; align-items: center; gap: 12px; height: 44px; width: max-content; max-width: 760px; padding: 0 8px 0 16px; border-radius: 8px;
-  font-size: 13px; font-weight: 500; background: #121216; border: 1px solid rgba(255, 255, 255, 0.16);
+.pill { display: inline-flex; align-items: center; gap: 12px; height: 44px; width: max-content; max-width: 760px; padding: 0 8px 0 18px; border-radius: 9999px;
+  font-size: 13px; font-weight: 500; background: #121216; border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); animation: et-pill-in 260ms cubic-bezier(0.2, 1.4, 0.4, 1) both; }
-:root[data-glass="on"] .pill { background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.03)), rgba(16, 16, 22, 0.45); }   /* dark enough for white text over a white page (AA) */
+:root[data-glass="on"] .pill { background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0)), rgba(12, 12, 16, 0.94); }   /* light frost: mostly dark (0.84 still showed a lot through, measured on screen), so white text stays AA over any page */
 .pill.err { border-color: rgba(242, 176, 74, 0.55); }
 .pill-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.64); }
 .pill-dot.rec { background: #ef4444; animation: et-pulse-dot 0.8s ease-in-out infinite alternate; }
