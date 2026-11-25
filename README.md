@@ -8,7 +8,7 @@ No account, no cloud, no subscription, no usage limit.</p>
 
 <p align="center"><a href="download/EsyType_0.5.0_x64-setup.exe"><b>⬇ Download EsyType 0.5.0 for Windows</b></a> (5.6 MB, 64-bit Windows 10 or 11)</p>
 
-![EsyType: hold the shortcut, speak, release](docs/images/dictation-ctrl-space.png)
+![EsyType: hold the shortcut, speak, release](docs/images/dictation-ctrl-space-0.5.0.png)
 
 ## Install
 
@@ -49,11 +49,11 @@ EsyType lives in the system tray and can start with Windows. English by default;
 | **Speech models** | Tiny (low-resource PCs), Base (balanced, the default) or Small (most accurate). EsyType says which ones fit your PC. Runs on an ordinary CPU; no graphics card needed. |
 
 <table>
-<tr><td><img src="docs/images/insights.png" alt="Insights page"></td><td><img src="docs/images/history.png" alt="History page"></td></tr>
+<tr><td><img src="docs/images/insights-0.5.0.png" alt="Insights page"></td><td><img src="docs/images/history-0.5.0.png" alt="History page"></td></tr>
 <tr><td align="center">Insights: words per day, streaks and time saved</td><td align="center">History: every dictation, kept on your PC</td></tr>
-<tr><td><img src="docs/images/dictionary.png" alt="Dictionary page"></td><td><img src="docs/images/style.png" alt="Style page"></td></tr>
+<tr><td><img src="docs/images/dictionary-0.5.0.png" alt="Dictionary page"></td><td><img src="docs/images/style-0.5.0.png" alt="Style page"></td></tr>
 <tr><td align="center">Dictionary: names and words spelled your way</td><td align="center">Style: how text is finished in each app</td></tr>
-<tr><td colspan="2"><img src="docs/images/settings.png" alt="Settings, Shortcuts"></td></tr>
+<tr><td colspan="2"><img src="docs/images/settings-0.5.0.png" alt="Settings, Shortcuts"></td></tr>
 <tr><td colspan="2" align="center">Settings: shortcuts, including push to talk on one key</td></tr>
 </table>
 
