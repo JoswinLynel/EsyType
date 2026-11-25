@@ -4,6 +4,23 @@ All notable changes to EsyType are recorded here. Dates are ISO 8601.
 
 ## Unreleased
 
+### 2026-11-25: EsyMeet milestone 8.1, dual-audio capture (test tools only; the app is unchanged)
+
+- **New capture module, not yet in the app:** `src-tauri/src/capture.rs` records your microphone and the PC's sound (WASAPI loopback) on one timeline, placed by Windows' own capture timestamps. It is driven by the probe `bench/meet-capture`.
+- **Measured over two 60-minute and two 15-minute runs:**
+  - 0 reopens, 0 device errors, 0 clipping
+  - every test sentence read back exactly by Whisper
+  - no drift
+  - under 1% of one core, about 12 MB of memory
+  - dictation unchanged with capture running (2.2 s against 2.3 s)
+- **Fixed during the study:**
+  - Windows' overrun notices no longer reopen healthy streams.
+  - Silent PC sound now keeps up with the clock.
+  - Chunks are placed by capture time, not arrival time.
+- **Found:** the laptop microphone repeats the speakers' speech about 60 ms later, so the two tracks stay separate.
+- **Still to do:** the device-change test (headphones in and out) needs the owner, so 8.1 is not yet complete.
+- Report: `docs/testing/2026-11-25-esymeet-capture-study.md`. Architecture: `docs/architecture/esymeet-capture.md`.
+
 ### 2026-11-25: EsyMeet study 8.0, the engine for live meetings (test tools only; the app is unchanged)
 
 - **Result:** the short encoder window with a 256-frame margin matches today's accuracy (ordinary 0.8%, LibriSpeech 3.4%). It transcribes a 10-second piece in about 1.3 s on 2 threads, so live meeting text can follow speech by about 2–6 seconds.

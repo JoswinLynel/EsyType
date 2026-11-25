@@ -1,0 +1,12 @@
+[package]
+name = "meet-capture"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "EsyMeet plan 8.1: drives src-tauri/src/capture.rs (microphone + PC sound) outside the app and reports on it"
+
+[dependencies]
+cpal = "0.18"
+
+[profile.release]
+debug = false
